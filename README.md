@@ -37,6 +37,7 @@ UI :
 - One File, One Password
 ## Thank's To :
 
+- Tersakiti Crew
 - #CianjurHacktivist
 - AnonSec Team
 - Ghost Hunter Illusion
